@@ -60,7 +60,7 @@ static void initGraphics(App* app, AppContext* state) {
     osSetSpeedupEnable(true);
 
     gfxInitDefault();
-    gl2c3d_init(); // Инициализация транслятора + C3D
+    nova_init(); // Инициализация транслятора + C3D
 
     if (!_app_inited) {
         _app_inited = true;
@@ -73,7 +73,7 @@ static void initGraphics(App* app, AppContext* state) {
 }
 
 static void deinitGraphics() {
-    gl2c3d_fini(); // Очистка транслятора
+    nova_fini(); // Очистка транслятора
     gfxExit();
 }
 
@@ -109,7 +109,18 @@ void handleTouch() {
         wasTouching = false;
     }
 }
+void printMemoryStats() {
+    struct mallinfo mi = mallinfo();
 
+    // Свободная линейная память (ИМЕННО ОНА НУЖНА ДЛЯ ЧАНКОВ НА 3DS)
+    u32 linearFree = linearSpaceFree();
+
+    float heapUsedMB = (float)mi.uordblks / 1024.0f / 1024.0f;
+    float linearFreeMB = (float)linearFree / 1024.0f / 1024.0f;
+
+    printf("[MEMORY] Heap Used: %.2f MB | LINEAR RAM FREE: %.2f MB\n",
+           heapUsedMB, linearFreeMB);
+}
 static void trackpadFeed(int stick, float x, float y) {
     float limitX = (std::abs(x) > 0.15f) ? x : 0.0f;
     float limitY = (std::abs(y) > 0.15f) ? y : 0.0f;
@@ -152,8 +163,10 @@ int main(int argc, char** argv) {
 
     printf("asdas");
     printf("asdas");
+    printf("asdas");
     mkdir("sdmc:/3ds", 0777);
     mkdir("sdmc:/3ds/minecraftpe", 0777);
+    mkdir("sdmc:/3ds/minecraftpe/cache", 0777);
 
     FILE* log_file = fopen("sdmc:/3ds/minecraftpe/debug_log.txt", "w");
     if (log_file) {
@@ -168,7 +181,7 @@ int main(int argc, char** argv) {
     MAIN_CLASS* app = new MAIN_CLASS();
 
     app->externalStoragePath = "sdmc:/3ds/minecraftpe";
-    app->externalCacheStoragePath = "sdmc:/3ds/minecraftpe";
+    app->externalCacheStoragePath = "sdmc:/3ds/minecraftpe/cache";
 
     int commandPort = 0;
     if (argc > 1) commandPort = atoi(argv[1]);
@@ -181,6 +194,8 @@ int main(int argc, char** argv) {
 
     initGraphics(app, &context);
 
+    int frameCounter = 0; // Добавь счетчик перед циклом
+
     while (aptMainLoop()) {
         hidScanInput();
 
@@ -189,12 +204,18 @@ int main(int argc, char** argv) {
         handleTouch();
         handleController();
 
-        gl2c3d_frame_begin();
-        gl2c3d_set_render_target(0);
+        nova_frame_begin();
+        nova_set_render_target(0);
 
         app->update();
 
-        gl2c3d_frame_end();
+        nova_frame_end();
+
+        // Выводим память раз в 60 кадров
+        if (frameCounter % 60 == 0) {
+            printMemoryStats();
+        }
+        frameCounter++;
     }
 
     deinitGraphics();

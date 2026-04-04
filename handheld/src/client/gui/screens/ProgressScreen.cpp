@@ -86,7 +86,7 @@ void ProgressScreen::render( int xm, int ym, float a )
 	}
 
     glDisable2(GL_BLEND);
-	sleepMs(50);
+	//sleepMs(50);
 }
 
 bool ProgressScreen::isInGameScreen() { return false; }

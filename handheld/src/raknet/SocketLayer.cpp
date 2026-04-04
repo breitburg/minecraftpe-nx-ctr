@@ -1302,6 +1302,7 @@ RakNet::RakString SocketLayer::GetSubNetForSocketAndIp(SOCKET inSock, RakNet::Ra
 	printf("[DEBUG] nifmGetCurrentIpConfigInfo FAILED in GetSubNet!\n");
 	return "255.255.255.0";
 #elif defined(__3DS__)
+	printf("[DEBUG] 3DS: Using default subnet mask 255.255.255.0\n");
 	return "255.255.255.0";
 #elif defined(__NDS__)
 	struct in_addr ip, gateway, mask, dns1, dns2;
@@ -1519,6 +1520,29 @@ void GetMyIP_Switch(SystemAddress addresses[MAXIMUM_NUMBER_OF_INTERNAL_IDS])
 		addresses[i] = UNASSIGNED_SYSTEM_ADDRESS;
 }
 #endif
+#ifdef __3DS__
+void GetMyIP_3DS(SystemAddress addresses[MAXIMUM_NUMBER_OF_INTERNAL_IDS])
+{
+	// В libctru gethostid() возвращает IPv4 адрес консоли в u32
+	// Работает мгновенно и не вешает поток, в отличие от gethostname
+	uint32_t ip = gethostid();
+
+	if (ip != 0 && ip != 0xFFFFFFFF)
+	{
+		addresses[0].address.addr4.sin_family = AF_INET;
+		addresses[0].address.addr4.sin_addr.s_addr = ip;
+	}
+	else
+	{
+		// Если Wi-Fi выключен, отдаём локалхост, чтобы RakNet не сошел с ума
+		addresses[0].address.addr4.sin_family = AF_INET;
+		addresses[0].address.addr4.sin_addr.s_addr = inet_addr("127.0.0.1");
+	}
+
+	for (int i = 1; i < MAXIMUM_NUMBER_OF_INTERNAL_IDS; i++)
+		addresses[i] = UNASSIGNED_SYSTEM_ADDRESS;
+}
+#endif
 #ifdef __VITA__
 void GetMyIP_Vita( SystemAddress addresses[MAXIMUM_NUMBER_OF_INTERNAL_IDS] )
 {
@@ -1681,6 +1705,8 @@ void SocketLayer::GetMyIP( SystemAddress addresses[MAXIMUM_NUMBER_OF_INTERNAL_ID
 	GetMyIP_Vita(addresses);
 #elif defined(__SWITCH__)
 	GetMyIP_Switch(addresses);
+#elif defined (__3DS__)
+	GetMyIP_3DS(addresses);
 #else
 //	GetMyIP_Linux(addresses);
 	GetMyIP_Win32(addresses);

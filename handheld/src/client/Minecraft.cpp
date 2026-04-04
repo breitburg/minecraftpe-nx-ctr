@@ -55,6 +55,9 @@
 #if defined(__SWITCH__)
 #include "player/input/NxInput.h"
 #endif
+#if defined(__3DS__)
+#include "player/input/ctr_input.h"
+#endif
 #if defined(__VITA__)
 #include "player/input/VitaInput.h"
 #include <psp2/power.h>
@@ -910,7 +913,7 @@ void Minecraft::tickInput() {
 				}
 			#endif
 
-			#if !defined(__VITA__) && !defined(__3DS__) // this is handled earlier ..
+			#if !defined(__VITA__) && !defined(__SWITCH__) && !defined(__3DS__) // this is handled earlier ..
 			#ifndef RPI
 #ifdef __NDS__
 #else
@@ -1346,6 +1349,8 @@ void Minecraft::_reloadInput() {
 		inputHolder = new VitaInputHolder(this, &options);
 	#elif __SWITCH__
 		inputHolder = new NxInputHolder(this, &options);
+	#elif __3DS__
+		inputHolder = new N3dsInputHolder(this, &options);
 	#else
 	if (useTouchscreen()) {
 		inputHolder = new TouchInputHolder(this, &options);
