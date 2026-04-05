@@ -113,6 +113,9 @@ private:
 	bool occlusionCheck;
 	int lastViewDistance;
 
+#ifdef __3DS__
+	Chunk* chunkPool;
+#endif
 	int ticks;
     int starList, skyList, darkList;
 

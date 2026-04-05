@@ -153,7 +153,11 @@ void LevelRenderer::allChanged()
 	Tile::leaves_carried->setFancy(mc->options.fancyGraphics);
 	lastViewDistance = mc->options.viewDistance;
 
+#ifdef __3DS__
+	int dist = (128 >> 3) << (3 - lastViewDistance);
+#else
 	int dist = (512 >> 3) << (3 - lastViewDistance);
+#endif
 	if (lastViewDistance <= 2 && mc->isPowerVR())
 		dist = (int)((float)dist * 0.8f);
 	LOGI("last: %d, power: %d\n", lastViewDistance, mc->isPowerVR());
@@ -185,6 +189,9 @@ void LevelRenderer::allChanged()
 	yMaxChunk = yChunks;
 	zMaxChunk = zChunks;
 	dirtyChunks.clear();
+#ifdef __3DS__
+	dirtyChunks.reserve(chunksLength);
+#endif
 	//renderableTileEntities.clear();
 
 	for (int x = 0; x < xChunks; x++) {

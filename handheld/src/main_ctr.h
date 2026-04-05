@@ -146,18 +146,19 @@ void handleController() {
     trackpadFeed(2, (float)cs.dx / 156.0f, -(float)cs.dy / 156.0f);
 
     if(changed & KEY_DUP) Keyboard::feed(Keyboard::KEY_F5, (kHeld & KEY_DUP) ? 1 : 0);
-    if(changed & KEY_R) Keyboard::feed(Keyboard::KEY_RIGHT, (kHeld & KEY_R) ? 1 : 0);
-    if(changed & KEY_L) Keyboard::feed(Keyboard::KEY_LEFT, (kHeld & KEY_L) ? 1 : 0);
+    if(changed & KEY_DRIGHT) Keyboard::feed(Keyboard::KEY_RIGHT, (kHeld & KEY_DRIGHT) ? 1 : 0);
+    if(changed & KEY_DLEFT) Keyboard::feed(Keyboard::KEY_LEFT, (kHeld & KEY_DLEFT) ? 1 : 0);
     if(changed & KEY_DDOWN) Keyboard::feed(Keyboard::KEY_LSHIFT, (kHeld & KEY_DDOWN) ? 1 : 0);
     if(changed & KEY_A) Keyboard::feed(Keyboard::KEY_SPACE, (kHeld & KEY_A) ? 1 : 0);
     if(changed & KEY_X) Keyboard::feed(Keyboard::KEY_C, (kHeld & KEY_X) ? 1 : 0);
     if(changed & KEY_B) Keyboard::feed(Keyboard::KEY_ESCAPE, (kHeld & KEY_B) ? 1 : 0);
     if(changed & KEY_Y) Keyboard::feed(Keyboard::KEY_E, (kHeld & KEY_Y) ? 1 : 0);
     if(changed & KEY_START) Keyboard::feed(Keyboard::KEY_P, (kHeld & KEY_START) ? 1 : 0);
-    if(changed & KEY_ZR) Mouse::feed(MouseAction::ACTION_LEFT, (kHeld & KEY_ZR) ? 1 : 0, 0, 0);
-    if(changed & KEY_ZL) Mouse::feed(MouseAction::ACTION_RIGHT, (kHeld & KEY_ZL) ? 1 : 0, 0, 0);
+    if(changed & KEY_R) Mouse::feed(MouseAction::ACTION_LEFT, (kHeld & KEY_R) ? 1 : 0, 0, 0);
+    if(changed & KEY_L) Mouse::feed(MouseAction::ACTION_RIGHT, (kHeld & KEY_L) ? 1 : 0, 0, 0);
 }
-
+u32 __ctru_heap_size = 1024 * 1024 * 32;
+u32 __ctru_linear_heap_size = 1024 * 1024 * 32;
 int main(int argc, char** argv) {
     romfsInit();
 

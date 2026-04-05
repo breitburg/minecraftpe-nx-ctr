@@ -112,6 +112,8 @@ target_compile_definitions(raknet PRIVATE
         _RAKNET_SUPPORT_TwoWayAuthentication=0
 )
 
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-reorder")
+
 # === MINECRAFT EXECUTABLE ===
 add_executable(${PROJECT_NAME}
         ${HANDHELD}/main.cpp
