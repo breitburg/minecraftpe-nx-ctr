@@ -156,6 +156,11 @@ void handleController() {
     if(changed & KEY_R) Mouse::feed(MouseAction::ACTION_LEFT, (kHeld & KEY_R) ? 1 : 0, 0, 0);
     if(changed & KEY_L) Mouse::feed(MouseAction::ACTION_RIGHT, (kHeld & KEY_L) ? 1 : 0, 0, 0);
 }
+//extern "C" {
+//    u32 __ctru_heap_size = 1024 * 1024 * 45;
+//
+//    u32 __ctru_linear_heap_size = 1024 * 1024 * 24;
+//}
 int main(int argc, char** argv) {
     romfsInit();
 

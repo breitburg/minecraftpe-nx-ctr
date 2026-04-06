@@ -1,8 +1,7 @@
+#include "LevelChunk.h"
 #ifdef __3DS__
 #include <3ds.h>
 #endif
-
-#include "LevelChunk.h"
 #include "../LightLayer.h"
 #include "../tile/Tile.h"
 #include "../Level.h"
@@ -41,20 +40,15 @@ LevelChunk::LevelChunk( Level* level, unsigned char* blocks, int x, int z )
 {
 #ifdef __3DS__
 	blocks = (unsigned char*)linearAlloc(ChunkBlockCount);
-	if (blocks != NULL) {
-		memset(blocks, 0, ChunkBlockCount);
-	}
 #endif
+
 	init();
 }
 
 LevelChunk::~LevelChunk()
 {
 #ifdef __3DS__
-	if (blocks != NULL) {
-		linearFree(blocks);
-		blocks = NULL;
-	}
+	if (blocks != NULL) linearFree(blocks);
 #endif
 	//delete blocks;
 }
@@ -661,6 +655,13 @@ int LevelChunk::getBlocksAndData( unsigned char* data, int x0, int y0, int z0, i
 	}
 
 	len = (y1 - y0) / 2;
+
+#ifdef __3DS__
+	this->data.forceAllocate();
+	this->blockLight.forceAllocate();
+	this->skyLight.forceAllocate();
+#endif
+
 	for (int x = x0; x < x1; x++)
 	for (int z = z0; z < z1; z++) {
 		int slot = (x << 11 | z << 7 | y0) >> 1;
@@ -700,6 +701,13 @@ int LevelChunk::setBlocksAndData( unsigned char* data, int x0, int y0, int z0, i
 	recalcHeightmapOnly();
 
 	len = (y1 - y0) / 2;
+
+#ifdef __3DS__
+	this->data.forceAllocate();
+	this->blockLight.forceAllocate();
+	this->skyLight.forceAllocate();
+#endif
+
 	for (int x = x0; x < x1; x++)
 	for (int z = z0; z < z1; z++) {
 		int slot = (x << 11 | z << 7 | y0) >> 1;
