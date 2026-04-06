@@ -1,5 +1,5 @@
 ﻿//
-// Created by Notebook on 10.03.2026. // Привет из будущего! :)
+// Created by efimandreev0 on 10.03.2026.
 //
 
 #ifndef MINECRAFTCPP_MAIN_CTR_H
@@ -56,11 +56,10 @@ void networkExit() {
 }
 
 static void initGraphics(App* app, AppContext* state) {
-    // Включаем 804 МГц для New 3DS
-    osSetSpeedupEnable(true);
+    //osSetSpeedupEnable(true);
 
     gfxInitDefault();
-    nova_init(); // Инициализация транслятора + C3D
+    nova_init();
 
     if (!_app_inited) {
         _app_inited = true;
@@ -157,8 +156,6 @@ void handleController() {
     if(changed & KEY_R) Mouse::feed(MouseAction::ACTION_LEFT, (kHeld & KEY_R) ? 1 : 0, 0, 0);
     if(changed & KEY_L) Mouse::feed(MouseAction::ACTION_RIGHT, (kHeld & KEY_L) ? 1 : 0, 0, 0);
 }
-u32 __ctru_heap_size = 1024 * 1024 * 32;
-u32 __ctru_linear_heap_size = 1024 * 1024 * 32;
 int main(int argc, char** argv) {
     romfsInit();
 
@@ -205,14 +202,12 @@ int main(int argc, char** argv) {
         handleTouch();
         handleController();
 
-        nova_frame_begin();
-        nova_set_render_target(0);
+        //we don't need it now
+        //nova_set_render_target(0);
 
         app->update();
 
-        nova_frame_end();
-
-        // Выводим память раз в 60 кадров
+        novaSwapBuffers();
         if (frameCounter % 60 == 0) {
             printMemoryStats();
         }

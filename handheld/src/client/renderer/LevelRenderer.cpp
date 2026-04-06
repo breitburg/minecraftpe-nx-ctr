@@ -154,7 +154,9 @@ void LevelRenderer::allChanged()
 	lastViewDistance = mc->options.viewDistance;
 
 #ifdef __3DS__
-	int dist = (128 >> 3) << (3 - lastViewDistance);
+	int dist = (512 >> 3) << (3 - lastViewDistance);
+
+	//int dist = 32;
 #else
 	int dist = (512 >> 3) << (3 - lastViewDistance);
 #endif

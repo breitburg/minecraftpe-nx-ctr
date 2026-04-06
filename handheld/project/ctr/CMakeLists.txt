@@ -32,9 +32,7 @@ if(DEMO)
     add_definitions(-DDEMO_MODE)
 endif()
 
-# Оставляем бэкенд флаги, которые нужны твоему коду
-add_compile_definitions(RIP_BACKEND=0x01)
-add_compile_options(-O3 -ffast-math -fomit-frame-pointer -fpermissive)
+add_compile_options(-Os -flto -ffast-math -fomit-frame-pointer -fpermissive -fno-exceptions)
 
 if(PUBLISH)
     add_definitions(-DPUBLISH)
@@ -112,7 +110,7 @@ target_compile_definitions(raknet PRIVATE
         _RAKNET_SUPPORT_TwoWayAuthentication=0
 )
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-reorder")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-reorder -Wno-char-subscripts")
 
 # === MINECRAFT EXECUTABLE ===
 add_executable(${PROJECT_NAME}
