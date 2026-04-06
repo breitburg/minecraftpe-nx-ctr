@@ -1,3 +1,7 @@
+#ifdef __3DS__
+#include <3ds.h>
+#endif
+
 #include "LevelChunk.h"
 #include "../LightLayer.h"
 #include "../tile/Tile.h"
@@ -35,11 +39,23 @@ LevelChunk::LevelChunk( Level* level, unsigned char* blocks, int x, int z )
 	blockLight(ChunkBlockCount),
 	blocksLength(ChunkBlockCount)
 {
+#ifdef __3DS__
+	blocks = (unsigned char*)linearAlloc(ChunkBlockCount);
+	if (blocks != NULL) {
+		memset(blocks, 0, ChunkBlockCount);
+	}
+#endif
 	init();
 }
 
 LevelChunk::~LevelChunk()
 {
+#ifdef __3DS__
+	if (blocks != NULL) {
+		linearFree(blocks);
+		blocks = NULL;
+	}
+#endif
 	//delete blocks;
 }
 
@@ -334,8 +350,15 @@ void LevelChunk::clearUpdateMap()
 
 void LevelChunk::deleteBlockData()
 {
+#ifdef __3DS__
+	if (blocks != NULL) {
+		linearFree(blocks);
+		blocks = NULL;
+	}
+#else
 	delete [] blocks;
 	blocks = NULL;
+#endif
 }
 
 bool LevelChunk::isAt( int x, int z )

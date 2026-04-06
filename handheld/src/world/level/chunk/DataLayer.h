@@ -2,6 +2,9 @@
 #define NET_MINECRAFT_WORLD_LEVEL_CHUNK__DataLayer_H__
 
 //package net.minecraft.world.level.chunk;
+#ifdef __3DS__
+#include <3ds.h>
+#endif
 
 #include <cstring>
 
@@ -15,7 +18,11 @@ public:
 
     DataLayer(int length) {
 		this->length = length >> 1;
+#ifdef __3DS__
+		data = (unsigned char*)linearAlloc(this->length);
+#else
 		data = new unsigned char[this->length];
+#endif
 		setAll(0);
 		slotMax = this->length;
     }
@@ -26,7 +33,14 @@ public:
     }
 
 	~DataLayer() {
+#ifdef __3DS__
+	if (this->data != NULL) {
+		linearFree(this->data);
+		this->data = NULL;
+	}
+#else
 		delete[] data;
+#endif
 	}
 
     int get(int x, int y, int z) {
