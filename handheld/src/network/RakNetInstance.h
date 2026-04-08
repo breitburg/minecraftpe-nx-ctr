@@ -115,6 +115,12 @@ private:
 
 	bool _isServer;
 	bool _isLoggedIn;
+
+// --- 3DS PORT ---
+#ifdef __3DS__
+	void* socBuffer;
+#endif
+// ----------------
 };
 
 #endif /*_MINECRAFT_NETWORK_RAKNETINSTANCE_H_*/

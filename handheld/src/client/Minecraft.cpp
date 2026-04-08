@@ -322,14 +322,20 @@ void Minecraft::setLevel(Level* level, const std::string& message /* ="" */, Loc
 
 void Minecraft::leaveGame(bool renameLevel /*=false*/)
 {
+	LOGI("Starting game leaving\n");
+
     if (isGeneratingLevel || !_hasSignaledGeneratingLevelFinished)
         return;
     
 	isGeneratingLevel = false;
 	bool saveLevel = level && (!level->isClientSide || renameLevel);
 
+	LOGI("RakNet disconnect\n");
+
 	raknetInstance->disconnect();
+
 	if (saveLevel) {
+		LOGI("level->getChunkSource()->saveAll\n");
 		// If server or wanting to save level as client, save all unsaved chunks!
 		level->getChunkSource()->saveAll(true);
 	}
