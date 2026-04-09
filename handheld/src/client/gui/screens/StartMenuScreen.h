@@ -19,6 +19,10 @@ public:
 	void buttonClicked(Button* button);
 	bool handleBackEvent(bool isDown);
 	bool isInGameScreen();
+
+	void mouseReleased(Minecraft* minecraft, int x, int y, int buttonNum);
+	void mouseClicked(Minecraft* minecraft, int x, int y, int buttonNum);
+
 private:
 	void _updateLicense();
 

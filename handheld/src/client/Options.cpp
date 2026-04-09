@@ -20,8 +20,11 @@ void Options::initDefaultValues() {
 	fixedCamera = false;
 	flySpeed = 1;
 	cameraSpeed = 1;
+#ifdef __3DS__
+	guiScale = 3;
+#else
 	guiScale = 0;
-
+#endif
 	useMouseForDigging = false;
 	destroyVibration = true;
 	isLeftHanded = false;
