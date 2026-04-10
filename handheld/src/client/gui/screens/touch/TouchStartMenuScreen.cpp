@@ -23,6 +23,7 @@
 #include "../SimpleChooseLevelScreen.h"
 
 namespace {
+const int StartMenuIconSrcSize = 75; // Actual icon size in touchgui.png (always 75x75)
 #ifdef __3DS__
 const int StartMenuButtonSize = 44;
 const float StartMenuTitleScale = 0.85f;
@@ -106,7 +107,7 @@ StartMenuScreen::StartMenuScreen()
 	bJoin.width = StartMenuButtonSize;
 	def.width = def.height = (float) bJoin.width;
 
-	def.setSrc(IntRectangle(0, 26, (int)def.width, (int)def.width));
+	def.setSrc(IntRectangle(0, 26, StartMenuIconSrcSize, StartMenuIconSrcSize));
 	def.name = "gui/touchgui.png";
 	IntRectangle& defSrc = *def.getSrc();
 
