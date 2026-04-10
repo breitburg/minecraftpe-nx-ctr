@@ -7,6 +7,20 @@
 #include "../../util/Mth.h"
 #include <cstring>
 
+namespace {
+float getPlatformFontScale() {
+#ifdef __3DS__
+	return 0.8f;
+#else
+	return 1.0f;
+#endif
+}
+
+int scaleFontMetric(int value, float scale) {
+	return (int)(value * scale + 0.5f);
+}
+}
+
 Font::Font( Options* options, const std::string& name, Textures* textures )
 :	options(options),
 	fontTexture(0),
@@ -133,12 +147,14 @@ void Font::init( Options* options )
 
 void Font::drawShadow( const std::string& str, float x, float y, int color )
 {
-	draw(str, x + 1, y + 1, color, true);
+	const float shadowOffset = getScale() < 1.0f ? 1.0f : getScale();
+	draw(str, x + shadowOffset, y + shadowOffset, color, true);
 	draw(str, x, y, color);
 }
 void Font::drawShadow( const char* str, float x, float y, int color )
 {
-	draw(str, x + 1, y + 1, color, true);
+	const float shadowOffset = getScale() < 1.0f ? 1.0f : getScale();
+	draw(str, x + shadowOffset, y + shadowOffset, color, true);
 	draw(str, x, y, color);
 }
 
@@ -187,6 +203,9 @@ void Font::draw( const std::string& str, float x, float y, int color, bool darke
 	index = 0;
 	glPushMatrix2();
 	glTranslatef2((GLfloat)x, (GLfloat)y, 0.0f);
+	const float scale = getScale();
+	if (scale != 1.0f)
+		glScalef2(scale, scale, 1.0f);
 	for (unsigned int i = 0; i < str.length(); i++) {
 		while (str.length() > i + 1 && str[i] == 0xfffd) {
 			int cc = hex.find((char)tolower(str[i + 1]));
@@ -260,7 +279,7 @@ int Font::width( const std::string& str )
 			}
 		}
 	}
-	return maxLen>len? maxLen : len;
+	return scaleFontMetric(maxLen > len ? maxLen : len, getScale());
 }
 
 int Font::height( const std::string& str ) {
@@ -273,7 +292,7 @@ int Font::height( const std::string& str ) {
 			hasLine = false;
 		}
 	}
-	return h;
+	return scaleFontMetric(h, getScale());
 }
 
 std::string Font::sanitize( const std::string& str )
@@ -316,7 +335,7 @@ void Font::drawWordWrap( const std::string& str, float x, float y, float w, int 
 			line += words[pos++] + " ";
 		}
 		drawShadow(line, x, y, col);
-		y += lineHeight;
+		y += getScaledLineHeight();
 	}
 }
 
@@ -336,12 +355,16 @@ void Font::drawSlow( const char* str, float x, float y, int color, bool darken /
 	_textures->loadAndBindTexture(fontName);
 
 	Tesselator& t = Tesselator::instance;
+	glPushMatrix2();
+	glTranslatef2((GLfloat)x, (GLfloat)y, 0.0f);
+	const float scale = getScale();
+	if (scale != 1.0f)
+		glScalef2(scale, scale, 1.0f);
 	t.begin();
 	int alpha = (0xff000000 & color) >> 24;
 	if (!alpha) alpha = 0xff;
 	t.color((color >> 16) & 0xff, (color >> 8) & 0xff, color & 0xff, alpha);
-	
-	t.addOffset(x, y, 0);
+
 	float xOffset = 0;
 	float yOffset = 0;
 
@@ -355,7 +378,15 @@ void Font::drawSlow( const char* str, float x, float y, int color, bool darken /
 		}
 	}
 	t.draw();
-	t.addOffset(-x, -y, 0);
+	glPopMatrix2();
+}
+
+float Font::getScale() const {
+	return getPlatformFontScale();
+}
+
+int Font::getScaledLineHeight() const {
+	return scaleFontMetric(lineHeight, getScale());
 }
 
 void Font::buildChar( unsigned char i, float x /*= 0*/, float y /*=0*/ )

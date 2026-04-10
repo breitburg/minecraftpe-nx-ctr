@@ -1,5 +1,9 @@
 #include "RakNetInstance.h"
 
+#include <cstdio>
+#include <cstring>
+#include <string>
+
 #ifdef __SWITCH__
 #include <switch.h>
 #endif
@@ -22,6 +26,70 @@
 
 #define APP_IDENTIFIER "MCCPP;" APP_VERSION_STRING ";"
 #define APP_IDENTIFIER_MINECON "MCCPP;MINECON;"
+
+namespace {
+
+const char* const kLanAnnouncementPrefix = "MCCPP;";
+
+bool isUsableIpv4Address(const char* value)
+{
+	if (value == NULL || value[0] == '\0')
+		return false;
+
+	if (strcmp(value, "UNASSIGNED_SYSTEM_ADDRESS") == 0)
+		return false;
+
+	if (strcmp(value, "127.0.0.1") == 0 || strcmp(value, "0.0.0.0") == 0)
+		return false;
+
+	int a, b, c, d;
+	return sscanf(value, "%d.%d.%d.%d", &a, &b, &c, &d) == 4;
+}
+
+RakNet::RakString getSlash24BroadcastAddress(const char* value)
+{
+	int a, b, c, d;
+	if (sscanf(value, "%d.%d.%d.%d", &a, &b, &c, &d) != 4)
+		return "";
+
+	char buffer[32];
+	snprintf(buffer, sizeof(buffer), "%d.%d.%d.255", a, b, c);
+	return buffer;
+}
+
+void appendUniqueBroadcast(std::vector<RakNet::RakString>& targets, const RakNet::RakString& candidate)
+{
+	if (candidate.IsEmpty())
+		return;
+
+	for (size_t i = 0; i < targets.size(); ++i)
+	{
+		if (targets[i] == candidate)
+			return;
+	}
+
+	targets.push_back(candidate);
+}
+
+bool parseLanAnnouncement(const RakNet::RakString& data, RakNet::RakString& name, bool& isSpecial)
+{
+	const std::string raw = data.C_String();
+	const std::string prefix(kLanAnnouncementPrefix);
+
+	if (raw.compare(0, prefix.size(), prefix) != 0)
+		return false;
+
+	const size_t flavorSep = raw.find(';', prefix.size());
+	if (flavorSep == std::string::npos)
+		return false;
+
+	const std::string flavor = raw.substr(prefix.size(), flavorSep - prefix.size());
+	name = raw.substr(flavorSep + 1).c_str();
+	isSpecial = flavor == "MINECON";
+	return true;
+}
+
+} // namespace
 
 RakNetInstance::RakNetInstance()
 :	rakPeer(NULL),
@@ -80,6 +148,7 @@ bool RakNetInstance::host(const std::string& localName, int port, int maxConnect
 	printf("[RakNet] HOST SUCCESS on port %d\n", port);
 	_isServer = true;
 	isPingingForServers = false;
+	announceServer(localName);
 
 	return true;
 }
@@ -202,14 +271,30 @@ void RakNetInstance::pingForHosts(int basePort)
 	pingPort = basePort;
 	lastPingTime = RakNet::GetTimeMS();
 
-	for (int i = 0; i < 4; ++i) {
+	std::vector<RakNet::RakString> broadcastTargets;
+	appendUniqueBroadcast(broadcastTargets, "255.255.255.255");
+
+	for (unsigned int i = 0; i < MAXIMUM_NUMBER_OF_INTERNAL_IDS; ++i)
+	{
+		const char* localIp = rakPeer->GetLocalIP(i);
+		if (!isUsableIpv4Address(localIp))
+			continue;
+
+		appendUniqueBroadcast(broadcastTargets, getSlash24BroadcastAddress(localIp));
+	}
+
 #ifdef __SWITCH__
-		rakPeer->Ping(GetBroadcastAddress().C_String(), basePort + i, false);
+	appendUniqueBroadcast(broadcastTargets, GetBroadcastAddress());
 #elif defined(__3DS__)
-		rakPeer->Ping(GetBroadcastAddress_3DS().C_String(), basePort + i, false);
-#else
-		rakPeer->Ping("255.255.255.255", basePort + i, true);
+	appendUniqueBroadcast(broadcastTargets, GetBroadcastAddress_3DS());
 #endif
+
+	for (size_t targetIndex = 0; targetIndex < broadcastTargets.size(); ++targetIndex)
+	{
+		for (int i = 0; i < 4; ++i)
+		{
+			rakPeer->Ping(broadcastTargets[targetIndex].C_String(), basePort + i, false);
+		}
 	}
 }
 
@@ -289,12 +374,7 @@ void RakNetInstance::runEvents(NetEventCallback* callback)
 						RakNet::RakString data;
 						activeBitStream.Read(time);
 						activeBitStream.Read(data);
-
-						int index = handleUnconnectedPong(data, currentEvent, APP_IDENTIFIER, false);
-						if (index < 0) {
-							index = handleUnconnectedPong(data, currentEvent, APP_IDENTIFIER_MINECON, true);
-							if (index >= 0) availableServers[index].isSpecial = true;
-						}
+						handleUnconnectedPong(data, currentEvent);
 					}
 					break;
 				}
@@ -379,34 +459,28 @@ const char* RakNetInstance::getPacketName(int packetId)
 }
 #endif
 
-int RakNetInstance::handleUnconnectedPong(const RakNet::RakString& data, const RakNet::Packet* p, const char* appid, bool insertAtBeginning)
+int RakNetInstance::handleUnconnectedPong(const RakNet::RakString& data, const RakNet::Packet* p)
 {
-	RakNet::RakString appIdentifier(appid);
-	bool emptyNameOrLonger = data.GetLength() >= appIdentifier.GetLength();
-
-	if ( !emptyNameOrLonger || appIdentifier.StrCmp(data.SubStr(0, appIdentifier.GetLength())) != 0)
+	RakNet::RakString parsedName;
+	bool isSpecial = false;
+	if (!parseLanAnnouncement(data, parsedName, isSpecial))
 		return -1;
 
 	for (unsigned int i = 0; i < availableServers.size(); i++) {
 		if (availableServers[i].address == p->systemAddress) {
 			availableServers[i].pingTime = RakNet::GetTimeMS();
-
-			bool emptyName = data.GetLength() == appIdentifier.GetLength();
-			if (emptyName)
-				availableServers[i].name = "";
-			else {
-				availableServers[i].name = data.SubStr(appIdentifier.GetLength(), data.GetLength() - appIdentifier.GetLength());
-			}
+			availableServers[i].name = parsedName;
+			availableServers[i].isSpecial = isSpecial;
 			return i;
 		}
 	}
 	PingedCompatibleServer server;
 	server.address = p->systemAddress;
 	server.pingTime = RakNet::GetTimeMS();
-	server.isSpecial = false;
-	server.name = data.SubStr(appIdentifier.GetLength(), data.GetLength() - appIdentifier.GetLength());
+	server.isSpecial = isSpecial;
+	server.name = parsedName;
 
-	if (insertAtBeginning) {
+	if (isSpecial) {
 		availableServers.insert(availableServers.begin(), server);
 		return 0;
 	} else {

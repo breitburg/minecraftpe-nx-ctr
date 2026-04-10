@@ -33,6 +33,8 @@ public:
 
 	static std::string sanitize(const std::string& str);
 private:
+	float getScale() const;
+	int getScaledLineHeight() const;
 	void buildChar(unsigned char i, float x = 0, float y = 0);
 	void drawSlow(const std::string& str, float x, float y, int color, bool darken = false);
 	void drawSlow(const char* str, float x, float y, int color, bool darken = false);

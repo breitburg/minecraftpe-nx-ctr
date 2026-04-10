@@ -22,6 +22,16 @@
 #include "../DialogDefinitions.h"
 #include "../SimpleChooseLevelScreen.h"
 
+namespace {
+#ifdef __3DS__
+const int StartMenuButtonSize = 44;
+const float StartMenuTitleScale = 0.85f;
+#else
+const int StartMenuButtonSize = 75;
+const float StartMenuTitleScale = 1.0f;
+#endif
+}
+
 //
 // Buy Button implementation
 //
@@ -31,8 +41,8 @@ BuyButton::BuyButton(int id)
 	ImageDef def;
 	// Setup the source rectangle
 	def.setSrc(IntRectangle(64, 182, 190, 55));
-	def.width = 75;//rc.w / 3;
-	def.height = 75 * (55.0f / 190.0f);//rc.h / 3;
+	def.width = StartMenuButtonSize;
+	def.height = StartMenuButtonSize * (55.0f / 190.0f);
 	def.name = "gui/gui.png";
 
 	setImageDef(def, true);
@@ -93,7 +103,7 @@ StartMenuScreen::StartMenuScreen()
 	bTest(    9, "Create")
 {
 	ImageDef def;
-	bJoin.width = 75;
+	bJoin.width = StartMenuButtonSize;
 	def.width = def.height = (float) bJoin.width;
 
 	def.setSrc(IntRectangle(0, 26, (int)def.width, (int)def.width));
@@ -156,8 +166,12 @@ void StartMenuScreen::init()
 }
 
 void StartMenuScreen::setupPositions() {
-	int yBase = 2 + height / 3;
 	int buttonWidth = bHost.width;
+#ifdef __3DS__
+	int yBase = Mth::Max(26, height / 2 - buttonWidth / 2 + 2);
+#else
+	int yBase = 2 + height / 3;
+#endif
 	float spacing = (width - (3.0f * buttonWidth)) / 4;
 
 	//#ifdef ANDROID
@@ -245,7 +259,7 @@ void StartMenuScreen::render( int xm, int ym, float a )
 
 		const float x = (float)width / 2;
 		const float y = 4;
-		const float wh = 0.5f * Mth::Min((float)width/2.0f, (float)data->w / 2);
+		const float wh = StartMenuTitleScale * 0.5f * Mth::Min((float)width/2.0f, (float)data->w / 2);
 		const float scale = 2.0f * wh / (float)data->w;
 		const float h = scale * (float)data->h;
 

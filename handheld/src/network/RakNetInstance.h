@@ -103,7 +103,7 @@ public:
 #endif
 
 private:
-	int handleUnconnectedPong(const RakNet::RakString& data, const RakNet::Packet*, const char* appid, bool insertAtBeginning);
+	int handleUnconnectedPong(const RakNet::RakString& data, const RakNet::Packet*);
 
 	RakNet::RakPeerInterface*	rakPeer;
 	RakNet::RakNetGUID			serverGuid;

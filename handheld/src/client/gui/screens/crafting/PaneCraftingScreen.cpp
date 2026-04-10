@@ -26,6 +26,25 @@ const int rgbActive = 0xfff0f0f0;
 const int rgbInactive = 0xc0635558;
 const int rgbInactiveShadow = 0xc0aaaaaa;
 
+namespace {
+int getCategoryButtonSize(int height, int numCategories) {
+	int buttonHeight = (height - 16) / Mth::Max(numCategories, 4);
+#ifdef __3DS__
+	buttonHeight = Mth::Min(buttonHeight, 24);
+#endif
+	return Mth::Max(buttonHeight, 18);
+}
+
+int getDescriptionPaneWidth(int width) {
+#ifdef __3DS__
+	return Mth::Max(80, Mth::Min(88, width / 3));
+#else
+	(void)width;
+	return descFrameWidth;
+#endif
+}
+}
+
 class CategoryButton: public ImageButton {
 	typedef ImageButton super;
 public:
@@ -149,7 +168,7 @@ void PaneCraftingScreen::initCategories() {
 
 void PaneCraftingScreen::setupPositions() {
 	// Left  - Categories
-	const int buttonHeight = (height - 16) / (Mth::Max(numCategories, 4));
+	const int buttonHeight = getCategoryButtonSize(height, numCategories);
 	for (unsigned c = 0; c < _categoryButtons.size(); ++c) {
 		ImageButton* button = _categoryButtons[c];
 		button->x = (int)BorderPixels;
@@ -165,21 +184,25 @@ void PaneCraftingScreen::setupPositions() {
 		def.setSrc(IntRectangle(32 * (icon/2), 64 + (icon&1) * 32, 32, 32));
 		button->setImageDef(def, false);
 	}
+	const int detailsWidth = getDescriptionPaneWidth(width);
+	const int paneGap = 4;
+
+	// Middle - Scrolling pane
+	paneRect.x = buttonHeight + 2 * (int)BorderPixels;
+	paneRect.y = (int)BorderPixels + 2;
+	paneRect.w = Mth::Max(48, width - paneRect.x - detailsWidth - paneGap);
+	paneRect.h = height - 2 * (int)BorderPixels - 4;
+
 	// Right  - Description
-	const int craftW = (int)(100 - 2 * BorderPixels - 0);
-	btnCraft.x = width - descFrameWidth + (descFrameWidth-craftW)/2 - 1;//    width - descFrameWidth + (int)BorderPixels + 4;
+	const int craftW = Mth::Max(detailsWidth - 2 * (int)BorderPixels - 4, 56);
+	const int detailsX = paneRect.x + paneRect.w + paneGap;
+	btnCraft.x = detailsX + (detailsWidth - craftW) / 2;
 	btnCraft.y = 20;
 	btnCraft.setSize((float)craftW, 62);
 
 	btnClose.width = btnClose.height = 19;
 	btnClose.x = width - btnClose.width;
 	btnClose.y = 0;
-
-	// Middle - Scrolling pane
-	paneRect.x = buttonHeight + 2 * (int)BorderPixels;
-	paneRect.y = (int)BorderPixels + 2;
-	paneRect.w = width - paneRect.x - descFrameWidth;
-	paneRect.h = height - 2 * (int)BorderPixels - 4;
 
 	guiPaneFrame->setSize((float)paneRect.w + 2, (float)paneRect.h + 4);
 	guiBackground->setSize((float)width, (float)height);

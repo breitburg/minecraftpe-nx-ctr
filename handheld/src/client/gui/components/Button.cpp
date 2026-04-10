@@ -125,15 +125,25 @@ namespace Touch {
 TButton::TButton(int id, const std::string& msg)
 :	super(id, msg)
 {
+#ifdef __3DS__
+	width = 52;
+	height = 20;
+#else
 	width = 66;
 	height = 26;
+#endif
 }
 
 TButton::TButton( int id, int x, int y, const std::string& msg )
 :	super(id, x, y, msg)
 {
+#ifdef __3DS__
+	width = 52;
+	height = 20;
+#else
 	width = 66;
 	height = 26;
+#endif
 }
 
 TButton::TButton( int id, int x, int y, int w, int h, const std::string& msg )
@@ -166,8 +176,13 @@ THeader::THeader(int id, const std::string& msg)
 	xText(-99999)
 {
 	active = false;
+#ifdef __3DS__
+	width = 52;
+	height = 20;
+#else
 	width = 66;
 	height = 26;
+#endif
 }
 
 THeader::THeader( int id, int x, int y, const std::string& msg )
@@ -175,8 +190,13 @@ THeader::THeader( int id, int x, int y, const std::string& msg )
 	xText(-99999)
 {
 	active = false;
+#ifdef __3DS__
+	width = 52;
+	height = 20;
+#else
 	width = 66;
 	height = 26;
+#endif
 }
 
 THeader::THeader( int id, int x, int y, int w, int h, const std::string& msg )

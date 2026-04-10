@@ -1295,8 +1295,13 @@ void Minecraft::setSize(int w, int h) {
 		Gui::GuiScale = 3.0f;
 #endif
     }
-	else if (width >= 400)
+	else if (width >= 400) {
+#ifdef __3DS__
+		Gui::GuiScale = 1.5f;
+#else
 		Gui::GuiScale = 2.0f;
+#endif
+	}
 	else
 		Gui::GuiScale = 1.0f;
 
