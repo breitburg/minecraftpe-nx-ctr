@@ -252,6 +252,114 @@ void Inventory::setupDefault() {
 #endif
 		addItem(new ItemInstance(Item::bow));
 		addItem(new ItemInstance(Item::sign));
+
+		addItem(new ItemInstance(Item::sword_wood));
+        addItem(new ItemInstance(Item::sword_stone));
+        addItem(new ItemInstance(Item::sword_gold));
+        addItem(new ItemInstance(Item::sword_emerald)); // В старых версиях emerald = алмаз
+
+        addItem(new ItemInstance(Item::pickAxe_wood));
+        addItem(new ItemInstance(Item::pickAxe_stone));
+        addItem(new ItemInstance(Item::pickAxe_iron));
+        addItem(new ItemInstance(Item::pickAxe_gold));
+        addItem(new ItemInstance(Item::pickAxe_emerald));
+
+        addItem(new ItemInstance(Item::shovel_wood));
+        addItem(new ItemInstance(Item::shovel_stone));
+        addItem(new ItemInstance(Item::shovel_iron));
+        addItem(new ItemInstance(Item::shovel_gold));
+        addItem(new ItemInstance(Item::shovel_emerald));
+
+        addItem(new ItemInstance(Item::hatchet_wood));
+        addItem(new ItemInstance(Item::hatchet_stone));
+        addItem(new ItemInstance(Item::hatchet_iron));
+        addItem(new ItemInstance(Item::hatchet_gold));
+        addItem(new ItemInstance(Item::hatchet_emerald));
+
+        addItem(new ItemInstance(Item::hoe_wood));
+        addItem(new ItemInstance(Item::hoe_stone));
+        addItem(new ItemInstance(Item::hoe_gold));
+        addItem(new ItemInstance(Item::hoe_emerald));
+
+        addItem(new ItemInstance(Item::arrow));
+        addItem(new ItemInstance((Item*)Item::shears));
+        addItem(new ItemInstance(Item::flintAndSteel));
+
+        addItem(new ItemInstance(Item::helmet_cloth));
+        addItem(new ItemInstance(Item::chestplate_cloth));
+        addItem(new ItemInstance(Item::leggings_cloth));
+        addItem(new ItemInstance(Item::boots_cloth));
+
+        addItem(new ItemInstance(Item::helmet_chain));
+        addItem(new ItemInstance(Item::chestplate_chain));
+        addItem(new ItemInstance(Item::leggings_chain));
+        addItem(new ItemInstance(Item::boots_chain));
+
+        addItem(new ItemInstance(Item::helmet_iron));
+        addItem(new ItemInstance(Item::chestplate_iron));
+        addItem(new ItemInstance(Item::leggings_iron));
+        addItem(new ItemInstance(Item::boots_iron));
+
+        addItem(new ItemInstance(Item::helmet_gold));
+        addItem(new ItemInstance(Item::chestplate_gold));
+        addItem(new ItemInstance(Item::leggings_gold));
+        addItem(new ItemInstance(Item::boots_gold));
+
+        addItem(new ItemInstance(Item::helmet_diamond));
+        addItem(new ItemInstance(Item::chestplate_diamond));
+        addItem(new ItemInstance(Item::leggings_diamond));
+        addItem(new ItemInstance(Item::boots_diamond));
+
+        addItem(new ItemInstance(Item::apple));
+        addItem(new ItemInstance(Item::apple_gold));
+        addItem(new ItemInstance(Item::mushroomStew));
+        addItem(new ItemInstance(Item::bread));
+        addItem(new ItemInstance(Item::porkChop_raw));
+        addItem(new ItemInstance(Item::porkChop_cooked));
+        addItem(new ItemInstance(Item::beef_raw));
+        addItem(new ItemInstance(Item::beef_cooked));
+        addItem(new ItemInstance(Item::chicken_raw));
+        addItem(new ItemInstance(Item::chicken_cooked));
+        addItem(new ItemInstance(Item::cake));
+
+        addItem(new ItemInstance(Item::coal, 1, 0));
+        addItem(new ItemInstance(Item::coal, 1, 1));
+        addItem(new ItemInstance(Item::ironIngot));
+        addItem(new ItemInstance(Item::goldIngot));
+        addItem(new ItemInstance(Item::emerald));
+        addItem(new ItemInstance(Item::stick));
+        addItem(new ItemInstance(Item::bowl));
+        addItem(new ItemInstance(Item::string));
+        addItem(new ItemInstance(Item::feather));
+        addItem(new ItemInstance(Item::sulphur));
+        addItem(new ItemInstance(Item::flint));
+        addItem(new ItemInstance(Item::leather));
+        addItem(new ItemInstance(Item::brick));
+        addItem(new ItemInstance(Item::clay));
+        addItem(new ItemInstance(Item::paper));
+        addItem(new ItemInstance(Item::book));
+        addItem(new ItemInstance(Item::slimeBall));
+        addItem(new ItemInstance(Item::egg));
+        addItem(new ItemInstance(Item::yellowDust));
+        addItem(new ItemInstance(Item::bone));
+        addItem(new ItemInstance(Item::sugar));
+        addItem(new ItemInstance(Item::netherbrick));
+        addItem(new ItemInstance(Item::netherQuartz));
+
+        addItem(new ItemInstance(Item::compass));
+        addItem(new ItemInstance(Item::clock));
+        addItem(new ItemInstance(Item::bucket_empty));
+        addItem(new ItemInstance(Item::bucket_water));
+        addItem(new ItemInstance(Item::bucket_lava));
+        addItem(new ItemInstance(Item::minecart));
+        addItem(new ItemInstance(Item::boat));
+        addItem(new ItemInstance(Item::saddle));
+        addItem(new ItemInstance(Item::door_iron));
+        addItem(new ItemInstance(Item::snowBall));
+
+        for (int i = 0; i < 15; i++) {
+            addItem(new ItemInstance(Item::dye_powder, 1, i));
+        }
 	} else {
 #if defined(WIN32)
 		// Survival

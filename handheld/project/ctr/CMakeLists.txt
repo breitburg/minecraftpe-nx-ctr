@@ -366,6 +366,8 @@ add_executable(${PROJECT_NAME}
         ${HANDHELD}/client/IConfigListener.cpp
         ${HANDHELD}/locale/I18n.cpp
 
+        ${HANDHELD}/platform/audio/SoundSystemSDL2.cpp
+
         ${HANDHELD}/main_ctr.h
         ${HANDHELD}/AppPlatform_ctr.h
 )
@@ -383,6 +385,12 @@ target_link_directories(${PROJECT_NAME} PRIVATE
 
 target_link_libraries(${PROJECT_NAME} PUBLIC
         NovaGL
+        SDL
+        SDL_mixer
+        mad
+        vorbisidec
+        ogg
+        mikmod
         citro3d
         citro2d
         png
@@ -390,7 +398,7 @@ target_link_libraries(${PROJECT_NAME} PUBLIC
         m
         raknet
 )
-
+target_link_options(${PROJECT_NAME} PRIVATE -Wl,--allow-multiple-definition)
 # === ROMFS GENERATION ===
 set(ROMFS_STAGING_DIR "${CMAKE_CURRENT_BINARY_DIR}/romfs_staging")
 
@@ -412,5 +420,5 @@ ctr_generate_smdh(${PROJECT_NAME}.smdh
 
 ctr_create_3dsx(${PROJECT_NAME}
         #SMDH ${PROJECT_NAME}.smdh
-        #ROMFS ${ROMFS_STAGING_DIR}
+        ROMFS ${ROMFS_STAGING_DIR}
 )

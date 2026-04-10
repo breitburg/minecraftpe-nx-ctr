@@ -9,7 +9,7 @@
     #include "../../platform/audio/SoundSystemAL.h"
 #elif defined(__VITA__)
 	#include "../../platform/audio/SoundSystemVita.h"
-#elif defined(__SWITCH__)
+#elif defined(__SWITCH__) || defined(__3DS__)
 	#include"../../platform/audio/SoundSystemSDL2.h"
 	//#include "../../platform/audio/SoundSystemAL.h"
 #else
@@ -32,7 +32,7 @@ class SoundEngine
         SoundSystemAL soundSystem;
 	#elif defined(__VITA__)
 		SoundSystemVita soundSystem;
-	#elif defined(__SWITCH__)
+	#elif defined(__SWITCH__) || defined(__3DS__)
 		SoundSystemSDL soundSystem;
 	//	SoundSystemNX soundSystem;
 		//SoundSystemAL soundSystem;

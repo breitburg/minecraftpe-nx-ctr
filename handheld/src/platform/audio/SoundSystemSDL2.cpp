@@ -109,7 +109,6 @@ void SoundSystemSDL::playAt(const SoundDesc& sound, float x, float y, float z, f
     memcpy(wavBuffer, &header, sizeof(WAVHeader));
     memcpy(wavBuffer + sizeof(WAVHeader), sound.frames, sound.size);
 
-    // Загружаем в SDL_mixer
     SDL_RWops* rw = SDL_RWFromMem(wavBuffer, totalMemSize);
     Mix_Chunk* chunk = Mix_LoadWAV_RW(rw, 1);
     free(wavBuffer);
@@ -118,7 +117,7 @@ void SoundSystemSDL::playAt(const SoundDesc& sound, float x, float y, float z, f
 
     _chunks[channel] = chunk;
 
-    Mix_SetPosition(channel, 0, 0); // Сбрасываем эффекты на всякий случай
+    Mix_SetPosition(channel, 0, 0);
     Mix_Volume(channel, (int)(volume * MIX_MAX_VOLUME));
 
     Mix_PlayChannel(channel, chunk, 0);
