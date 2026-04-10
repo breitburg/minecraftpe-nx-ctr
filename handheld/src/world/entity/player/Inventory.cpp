@@ -256,7 +256,7 @@ void Inventory::setupDefault() {
 		addItem(new ItemInstance(Item::sword_wood));
         addItem(new ItemInstance(Item::sword_stone));
         addItem(new ItemInstance(Item::sword_gold));
-        addItem(new ItemInstance(Item::sword_emerald)); // В старых версиях emerald = алмаз
+        addItem(new ItemInstance(Item::sword_emerald));
 
         addItem(new ItemInstance(Item::pickAxe_wood));
         addItem(new ItemInstance(Item::pickAxe_stone));
@@ -311,7 +311,6 @@ void Inventory::setupDefault() {
         addItem(new ItemInstance(Item::boots_diamond));
 
         addItem(new ItemInstance(Item::apple));
-        addItem(new ItemInstance(Item::apple_gold));
         addItem(new ItemInstance(Item::mushroomStew));
         addItem(new ItemInstance(Item::bread));
         addItem(new ItemInstance(Item::porkChop_raw));
@@ -320,7 +319,6 @@ void Inventory::setupDefault() {
         addItem(new ItemInstance(Item::beef_cooked));
         addItem(new ItemInstance(Item::chicken_raw));
         addItem(new ItemInstance(Item::chicken_cooked));
-        addItem(new ItemInstance(Item::cake));
 
         addItem(new ItemInstance(Item::coal, 1, 0));
         addItem(new ItemInstance(Item::coal, 1, 1));
@@ -348,12 +346,6 @@ void Inventory::setupDefault() {
 
         addItem(new ItemInstance(Item::compass));
         addItem(new ItemInstance(Item::clock));
-        addItem(new ItemInstance(Item::bucket_empty));
-        addItem(new ItemInstance(Item::bucket_water));
-        addItem(new ItemInstance(Item::bucket_lava));
-        addItem(new ItemInstance(Item::minecart));
-        addItem(new ItemInstance(Item::boat));
-        addItem(new ItemInstance(Item::saddle));
         addItem(new ItemInstance(Item::door_iron));
         addItem(new ItemInstance(Item::snowBall));
 
