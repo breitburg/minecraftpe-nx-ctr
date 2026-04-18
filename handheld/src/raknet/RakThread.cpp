@@ -16,6 +16,9 @@ using namespace RakNet;
 	#include <process.h>
 	#endif
 #elif defined(__VITA__)
+#elif defined(__3DS__)
+#include <3ds.h>
+#include <pthread.h>
 #else
 #include <pthread.h>
 #endif
@@ -99,6 +102,33 @@ int RakThread::Create( void* start_address( void* ), void *arglist, int priority
 		arglist
 	};
 	int res = sceKernelStartThread(thid, 8, args);
+	return res;
+#elif defined(__3DS__)
+	(void)priority;
+	// 3DS: остаёмся на pthread (нужен TLS/_reent для pthread_cond_timedwait
+	// внутри RakSleep и SignaledEvent). Но RakNet передаёт priority=1000,
+	// а ядро принимает только 0x18..0x3F — и стек 2 МБ для libctru тоже перебор.
+	// Поэтому переопределяем оба параметра до pthread_create.
+	pthread_t threadHandle;
+	pthread_attr_t attr;
+	pthread_attr_init(&attr);
+
+	s32 mainPrio = 0x30;
+	svcGetThreadPriority(&mainPrio, CUR_THREAD_HANDLE);
+	int prio = mainPrio - 1;
+	if (prio < 0x18) prio = 0x18;
+	if (prio > 0x3F) prio = 0x3F;
+
+	sched_param param;
+	param.sched_priority = prio;
+	pthread_attr_setschedparam(&attr, &param);
+
+	pthread_attr_setstacksize(&attr, 64 * 1024);
+	pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+
+	int res = pthread_create(&threadHandle, &attr, start_address, arglist);
+	pthread_attr_destroy(&attr);
+	RakAssert(res == 0 && "pthread_create in RakThread.cpp failed (3DS).")
 	return res;
 #else
 	pthread_t threadHandle;

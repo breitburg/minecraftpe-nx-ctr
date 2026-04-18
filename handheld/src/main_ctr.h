@@ -33,6 +33,14 @@ static u32* soc_sharedmem = NULL;
 void networkInit() {
     if (soc_sharedmem != NULL) return;
 
+    // Обязательно: без этого новые потоки на 3DS живут только на core 0
+    // вместе с main loop и могут залипнуть в RakSleep навсегда. На N3DS
+    // это же открывает доступ ко второму ядру системы.
+    Result aptRc = APT_SetAppCpuTimeLimit(30);
+    if (R_FAILED(aptRc)) {
+        printf("APT_SetAppCpuTimeLimit failed: 0x%08lX\n", aptRc);
+    }
+
     soc_sharedmem = (u32*)memalign(0x1000, 0x100000);
     if(soc_sharedmem == NULL) {
         printf("Failed to allocate SOC memory!\n");

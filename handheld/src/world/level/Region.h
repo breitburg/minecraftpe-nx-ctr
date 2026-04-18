@@ -12,6 +12,11 @@ class LevelChunk;
 class Region: public LevelSource
 {
 public:
+    // A chunk-rebuild region is CHUNK_SIZE + 2 wide on X/Z, so it touches at
+    // most 3 world chunks in each horizontal direction. Keep the pointer grid
+    // inline to avoid three heap allocations per Chunk::rebuild() (hot path).
+    static const int MAX_SIZE = 4;
+
     Region(Level* level, int x1, int y1, int z1, int x2, int y2, int z2);
 	~Region();
 
@@ -29,7 +34,7 @@ public:
 	Biome* getBiome(int x, int z);
 private:
     int xc1, zc1;
-    LevelChunk*** chunks;
+    LevelChunk* chunks[MAX_SIZE * MAX_SIZE];
     Level* level;
 
 	int size_x;

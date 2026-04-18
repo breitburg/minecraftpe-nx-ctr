@@ -14,21 +14,20 @@ Region::Region(Level* level, int x1, int y1, int z1, int x2, int y2, int z2) {
 
 	size_x = xc2 - xc1 + 1;
 	size_z = zc2 - zc1 + 1;
-	chunks = new LevelChunk**[size_x];
-	for (int i = 0; i < size_x; ++i)
-		chunks[i] = new LevelChunk*[size_z];
 
-    for (int xc = xc1; xc <= xc2; xc++) {
-        for (int zc = zc1; zc <= zc2; zc++) {
-            chunks[xc - xc1][zc - zc1] = level->getChunk(xc, zc);
+    // Region is used per chunk rebuild; cap to the inline grid. For the
+    // current caller (chunks + 1-block halo) size_x/size_z <= 3.
+    if (size_x > MAX_SIZE) size_x = MAX_SIZE;
+    if (size_z > MAX_SIZE) size_z = MAX_SIZE;
+
+    for (int xc = 0; xc < size_x; xc++) {
+        for (int zc = 0; zc < size_z; zc++) {
+            chunks[xc * MAX_SIZE + zc] = level->getChunk(xc1 + xc, zc1 + zc);
         }
     }
 }
 
 Region::~Region() {
-	for (int i = 0 ; i < size_x; ++i)
-		delete[] chunks[i];
-	delete[] chunks;
 }
 
 int Region::getTile(int x, int y, int z) {
@@ -42,7 +41,7 @@ int Region::getTile(int x, int y, int z) {
         return 0;
     }
 
-    LevelChunk* lc = chunks[xc][zc];
+    LevelChunk* lc = chunks[xc * MAX_SIZE + zc];
     if (lc == NULL) return 0;
 
     return lc->getTile(x & 15, y, z & 15);
@@ -100,7 +99,12 @@ int Region::getRawBrightness(int x, int y, int z, bool propagate) {
     int xc = (x >> 4) - xc1;
     int zc = (z >> 4) - zc1;
 
-    return chunks[xc][zc]->getRawBrightness(x & 15, y, z & 15, level->skyDarken);
+    if (xc < 0 || xc >= size_x || zc < 0 || zc >= size_z) {
+        return Level::MAX_BRIGHTNESS;
+    }
+    LevelChunk* lc = chunks[xc * MAX_SIZE + zc];
+    if (lc == NULL) return Level::MAX_BRIGHTNESS;
+    return lc->getRawBrightness(x & 15, y, z & 15, level->skyDarken);
 }
 
 int Region::getData(int x, int y, int z) {
@@ -109,7 +113,12 @@ int Region::getData(int x, int y, int z) {
     int xc = (x >> 4) - xc1;
     int zc = (z >> 4) - zc1;
 
-    return chunks[xc][zc]->getData(x & 15, y, z & 15);
+    if (xc < 0 || xc >= size_x || zc < 0 || zc >= size_z) {
+        return 0;
+    }
+    LevelChunk* lc = chunks[xc * MAX_SIZE + zc];
+    if (lc == NULL) return 0;
+    return lc->getData(x & 15, y, z & 15);
 }
 
 const Material* Region::getMaterial(int x, int y, int z) {

@@ -193,6 +193,8 @@ void LevelRenderer::allChanged()
 	dirtyChunks.clear();
 #ifdef __3DS__
 	dirtyChunks.reserve(chunksLength);
+	_renderChunks.reserve(chunksLength);
+	_nearChunks.reserve(64);
 #endif
 	//renderableTileEntities.clear();
 
@@ -309,15 +311,15 @@ int LevelRenderer::render( Mob* player, int layer, float alpha )
 	}
 
 	TIMER_PUSH("sortchunks");
-	for (int i = 0; i < 10; i++) {
-		chunkFixOffs = (chunkFixOffs + 1) % chunksLength;
-		Chunk* c = chunks[chunkFixOffs];
-		if (c->isDirty() && std::find(dirtyChunks.begin(), dirtyChunks.end(), c) == dirtyChunks.end()) {
-			dirtyChunks.push_back(c);
-		}
-	}
-
 	if (layer == 0) {
+		for (int i = 0; i < 10; i++) {
+			chunkFixOffs = (chunkFixOffs + 1) % chunksLength;
+			Chunk* c = chunks[chunkFixOffs];
+			if (c->isDirty() && std::find(dirtyChunks.begin(), dirtyChunks.end(), c) == dirtyChunks.end()) {
+				dirtyChunks.push_back(c);
+			}
+		}
+
 		totalChunks = 0;
 		offscreenChunks = 0;
 		occludedChunks = 0;
@@ -547,21 +549,28 @@ int LevelRenderer::renderChunks( int from, int to, int layer, float alpha )
 {
 	_renderChunks.clear();
 	int count = 0;
-	for (int i = from; i < to; i++) {
-		if (layer == 0) {
+	// Hoist the two hot branches out of the inner loop: stats are only tracked
+	// for layer 0, and occlusion culling only contributes when enabled. Also
+	// avoid the virtual-ish getList() call by inlining its condition (chunk
+	// visible + non-empty layer).
+	if (layer == 0) {
+		for (int i = from; i < to; i++) {
+			Chunk* c = sortedChunks[i];
 			totalChunks++;
-			if (sortedChunks[i]->empty[layer]) emptyChunks++;
-			else if (!sortedChunks[i]->visible) offscreenChunks++;
-			else if (occlusionCheck && !sortedChunks[i]->occlusion_visible) occludedChunks++;
-			else renderedChunks++;
+			if (c->empty[0]) { emptyChunks++; continue; }
+			if (!c->visible) { offscreenChunks++; continue; }
+			if (occlusionCheck && !c->occlusion_visible) { occludedChunks++; continue; }
+			renderedChunks++;
+			_renderChunks.push_back(c);
+			count++;
 		}
-
-		if (!sortedChunks[i]->empty[layer] && sortedChunks[i]->visible && sortedChunks[i]->occlusion_visible) {
-			int list = sortedChunks[i]->getList(layer);
-			if (list >= 0) {
-				_renderChunks.push_back(sortedChunks[i]);
-				count++;
-			}
+	} else {
+		for (int i = from; i < to; i++) {
+			Chunk* c = sortedChunks[i];
+			if (c->empty[layer] || !c->visible) continue;
+			if (occlusionCheck && !c->occlusion_visible) continue;
+			_renderChunks.push_back(c);
+			count++;
 		}
 	}
 
@@ -633,7 +642,9 @@ bool LevelRenderer::updateDirtyChunks( Mob* player, bool force )
 
 		DirtyChunkSorter dirtyChunkSorter(player);
 		Chunk* toAdd[count] = {NULL};
-		std::vector<Chunk*>* nearChunks = NULL;
+		// Reused across frames to avoid per-frame heap churn.
+		std::vector<Chunk*>& nearChunks = _nearChunks;
+		nearChunks.clear();
 
 		int pendingChunkSize = dirtyChunks.size();
 		int pendingChunkRemoved = 0;
@@ -669,13 +680,8 @@ bool LevelRenderer::updateDirtyChunks( Mob* player, bool force )
 			}
 
 			// chunk is very close -- always render
-
-			if (nearChunks == NULL) {
-				nearChunks = new std::vector<Chunk*>();
-			}
-
 			pendingChunkRemoved++;
-			nearChunks->push_back(chunk);
+			nearChunks.push_back(chunk);
 			dirtyChunks[i] = NULL;
 		}
 
@@ -685,17 +691,16 @@ bool LevelRenderer::updateDirtyChunks( Mob* player, bool force )
 		Stopwatch chunkWatch;
 		chunkWatch.start();
 
-		if (nearChunks != NULL) {
-			if (nearChunks->size() > 1) {
-				std::sort(nearChunks->begin(), nearChunks->end(), dirtyChunkSorter);
+		if (!nearChunks.empty()) {
+			if (nearChunks.size() > 1) {
+				std::sort(nearChunks.begin(), nearChunks.end(), dirtyChunkSorter);
 			}
 
-			for (int i = nearChunks->size() - 1; i >= 0; i--) {
-				Chunk* chunk = (*nearChunks)[i];
+			for (int i = (int)nearChunks.size() - 1; i >= 0; i--) {
+				Chunk* chunk = nearChunks[i];
 				chunk->rebuild();
 				chunk->setClean();
 			}
-			delete nearChunks;
 		}
 
 		// render the nearest <count> chunks (farther than 1024 units away)
