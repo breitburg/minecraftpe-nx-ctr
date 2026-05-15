@@ -302,7 +302,9 @@ void GameRenderer::renderDualScreen3ds(float a) {
 		}
 	} else {
 		glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		setupGuiScreen(true);
+		if (mc->screen != NULL && mc->screen->renderOnTopScreen3ds())
+			mc->screen->render(xMouse, yMouse, a);
 	}
 
 	nova_set_render_target(kBottomRenderTarget);
@@ -324,6 +326,9 @@ void GameRenderer::renderDualScreen3ds(float a) {
 		if (mc->screen && !mc->screen->isInGameScreen())
 			sleepMs(15);
 	}
+
+	if (mc->isLevelGenerated() && !mc->options.hideGui)
+		mc->gui.renderBottomHotbar(a);
 
 	Gui::ScissorScaleX = Gui::GuiScale;
 	Gui::ScissorScaleY = Gui::GuiScale;

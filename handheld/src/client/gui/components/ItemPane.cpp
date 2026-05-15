@@ -11,15 +11,33 @@ const int rgbInactiveShadow = 0xc0aaaaaa;
 
 namespace {
 
+const int rgbShadow3ds = 0xaa151315;
+const int rgbInactive3ds = 0xff9a9093;
+
 void drawScaledText(Font* font, const char* text, float x, float y, float scale, int color, bool shadow) {
 	glPushMatrix2();
 	glTranslatef2(x, y, 0.0f);
 	glScalef2(scale, scale, 1.0f);
+#ifdef __3DS__
+	if (shadow) {
+		font->draw(text, 1.0f, 1.0f, rgbShadow3ds);
+		font->draw(text, 0.0f, 0.0f, color);
+	} else {
+		font->draw(text, 0.0f, 0.0f, color);
+	}
+#else
 	if (shadow)
 		font->drawShadow(text, 0.0f, 0.0f, color);
 	else
 		font->draw(text, 0.0f, 0.0f, color);
+#endif
 	glPopMatrix2();
+}
+
+void drawText3ds(Font* font, const std::string& text, float x, float y, int color, bool shadow) {
+	if (shadow)
+		font->draw(text, x + 1.0f, y + 1.0f, rgbShadow3ds);
+	font->draw(text, x, y, color);
 }
 
 std::string fitText(Font* font, const std::string& text, int maxWidth) {
@@ -105,7 +123,7 @@ void ItemPane::renderBatch( std::vector<GridItem>& items, float alpha )
 
 		const bool craftable = citem->canCraft();
 		const int bg = item.selected ? 0xff5f6763 : (craftable ? 0xff373234 : 0xff2a2729);
-		const int textColor = craftable ? rgbActive : rgbInactive;
+		const int textColor = craftable ? rgbActive : rgbInactive3ds;
 
 		const float y0 = Gui::floorAlignToScreenPixel(item.yf);
 		const float y1 = Gui::floorAlignToScreenPixel(item.yf + rowH - 1.0f);
@@ -118,18 +136,9 @@ void ItemPane::renderBatch( std::vector<GridItem>& items, float alpha )
 			Gui::floorAlignToScreenPixel(item.yf + 3.0f), 16, 16, false);
 
 		const std::string label = fitText(f, citem->text, (int)maxTextW);
-		if (craftable) {
-			f->drawShadow(label,
-				Gui::floorAlignToScreenPixel(textX),
-				Gui::floorAlignToScreenPixel(item.yf + 7.0f), textColor);
-		} else {
-			f->draw(label,
-				Gui::floorAlignToScreenPixel(textX + 1.0f),
-				Gui::floorAlignToScreenPixel(item.yf + 8.0f), rgbInactiveShadow);
-			f->draw(label,
-				Gui::floorAlignToScreenPixel(textX),
-				Gui::floorAlignToScreenPixel(item.yf + 7.0f), textColor);
-		}
+		drawText3ds(f, label,
+			Gui::floorAlignToScreenPixel(textX),
+			Gui::floorAlignToScreenPixel(item.yf + 7.0f), textColor, true);
 
 		char buf[64] = {0};
 		int c = Gui::itemCountItoa(buf, citem->inventoryCount);

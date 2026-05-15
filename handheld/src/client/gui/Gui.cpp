@@ -64,16 +64,20 @@ void Gui::render(float a, bool mouseFree, int xMouse, int yMouse) {
 	(void)xMouse;
 	(void)yMouse;
 
-	renderInGameHud(a);
+	renderInGameHud(a, true, true);
 }
 
 #ifdef __3DS__
 void Gui::renderTopHud(float a) {
-	renderInGameHud(a);
+	renderInGameHud(a, true, false);
+}
+
+void Gui::renderBottomHotbar(float a) {
+	renderInGameHud(a, false, true);
 }
 #endif
 
-void Gui::renderInGameHud(float a) {
+void Gui::renderInGameHud(float a, bool renderStatus, bool renderHotbar) {
 
 	if (!minecraft->level || !minecraft->player)
 		return;
@@ -85,53 +89,61 @@ void Gui::renderInGameHud(float a) {
 	const int screenWidth = (int)(minecraft->width * InvGuiScale);
 	const int screenHeight = (int)(minecraft->height * InvGuiScale);
 	blitOffset = -90;
-	renderProgressIndicator(isTouchInterface, screenWidth, screenHeight, a);
-
-	glColor4f2(1, 1, 1, 1);
 
 	// H: 4
-    // T: 7
+	// T: 7
     // L: 6
     // F: 3
 	int ySlot = getHotbarYSlot(screenHeight);
 
-	if (minecraft->gameMode->canHurtPlayer()) {
-		minecraft->textures->loadAndBindTexture("gui/icons.png");
-		Tesselator& t = Tesselator::instance;
-		t.beginOverride();
-		t.colorABGR(0xffffffff);
-		renderHearts();
-		renderBubbles();
-		t.endOverrideAndDraw();
+	if (renderStatus) {
+		renderProgressIndicator(isTouchInterface, screenWidth, screenHeight, a);
+
+		glColor4f2(1, 1, 1, 1);
+
+		if (minecraft->gameMode->canHurtPlayer()) {
+			minecraft->textures->loadAndBindTexture("gui/icons.png");
+			Tesselator& t = Tesselator::instance;
+			t.beginOverride();
+			t.colorABGR(0xffffffff);
+			renderHearts();
+			renderBubbles();
+			t.endOverrideAndDraw();
+		}
+
+		if(minecraft->player->getSleepTimer() > 0) {
+			glDisable(GL_DEPTH_TEST);
+			glDisable(GL_ALPHA_TEST);
+
+			renderSleepAnimation(screenWidth, screenHeight);
+
+			glEnable(GL_ALPHA_TEST);
+			glEnable(GL_DEPTH_TEST);
+		}
 	}
 
-	if(minecraft->player->getSleepTimer() > 0) {
-		glDisable(GL_DEPTH_TEST);
-		glDisable(GL_ALPHA_TEST);
-
-		renderSleepAnimation(screenWidth, screenHeight);
-
-		glEnable(GL_ALPHA_TEST);
-		glEnable(GL_DEPTH_TEST);
-	}
-
-	renderToolBar(a, ySlot, screenWidth);
-
+	if (renderHotbar)
+		renderToolBar(a, ySlot, screenWidth);
 
 	//font->drawShadow(APP_NAME, 2, 2, 0xffffffff);
 	//font->drawShadow("This is a demo, not the finished product", 2, 10 + 2, 0xffffffff);
 	#ifdef APPLE_DEMO_PROMOTION
-		font->drawShadow("Demo version", 2, 0 + 2, 0xffffffff);
+		if (renderStatus)
+			font->drawShadow("Demo version", 2, 0 + 2, 0xffffffff);
 	#endif /*APPLE_DEMO_PROMOTION*/
-	glEnable(GL_BLEND);
-	unsigned int max = 10;
-    bool isChatting = false;
-	renderChatMessages(screenHeight, max, isChatting, font);
+	if (renderStatus) {
+		glEnable(GL_BLEND);
+		unsigned int max = 10;
+		bool isChatting = false;
+		renderChatMessages(screenHeight, max, isChatting, font);
+	}
 #if !defined(RPI)
-	renderOnSelectItemNameText(screenWidth, font, ySlot);
+	if (renderHotbar)
+		renderOnSelectItemNameText(screenWidth, font, ySlot);
 #endif
 #if defined(RPI)
-	renderDebugInfo();
+	if (renderStatus)
+		renderDebugInfo();
 #endif
 
 //        glPopMatrix2();
@@ -142,11 +154,13 @@ void Gui::renderInGameHud(float a) {
 }
 
 int Gui::getHotbarYSlot(int screenHeight) const {
-	int ySlot = screenHeight - 16 - 3;
 #ifdef __3DS__
-	ySlot -= 18;
-#endif
+	(void)screenHeight;
+	return 6;
+#else
+	int ySlot = screenHeight - 16 - 3;
 	return ySlot;
+#endif
 }
 
 int Gui::getSlotIdAt(int x, int y) {

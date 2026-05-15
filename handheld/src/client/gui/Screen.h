@@ -42,9 +42,12 @@ public:
 	virtual bool renderGameBehind();
 	virtual bool hasClippingArea(IntRectangle& out);
 
-    virtual bool isPauseScreen();
+	virtual bool isPauseScreen();
 	virtual bool isErrorScreen();
 	virtual bool isInGameScreen();
+#ifdef __3DS__
+	virtual bool renderOnTopScreen3ds();
+#endif
     virtual bool closeOnPlayerHurt();
 
     virtual void confirmResult(bool result, int id) {}

@@ -10,6 +10,9 @@ public:
 
 	void render(int xm, int ym, float a);
 	bool isInGameScreen();
+#ifdef __3DS__
+	bool renderOnTopScreen3ds();
+#endif
 #if defined(__VITA__) || defined(__SWITCH__) || defined(__3DS__)
 	void keyPressed(int eventKey);
 #endif

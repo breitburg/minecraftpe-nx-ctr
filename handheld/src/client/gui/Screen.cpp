@@ -147,6 +147,13 @@ bool Screen::isInGameScreen()
 	return true;
 }
 
+#ifdef __3DS__
+bool Screen::renderOnTopScreen3ds()
+{
+	return false;
+}
+#endif
+
 bool Screen::closeOnPlayerHurt() {
     return false;
 }

@@ -50,10 +50,19 @@ void drawScaledFont(Font* font, const char* text, float x, float y, float scale,
 	glPushMatrix2();
 	glTranslatef2(x, y, 0.0f);
 	glScalef2(scale, scale, 1.0f);
+#ifdef __3DS__
+	if (shadow) {
+		font->draw(text, 1.0f, 1.0f, 0xaa151315);
+		font->draw(text, 0.0f, 0.0f, color);
+	} else {
+		font->draw(text, 0.0f, 0.0f, color);
+	}
+#else
 	if (shadow)
 		font->drawShadow(text, 0.0f, 0.0f, color);
 	else
 		font->draw(text, 0.0f, 0.0f, color);
+#endif
 	glPopMatrix2();
 }
 }
@@ -242,20 +251,21 @@ void PaneCraftingScreen::setupPositions3ds() {
 	const int margin = 4;
 	const int buttonHeight = 23;
 	const int gap = 4;
+	const int reservedHotbarTop = 31;
 
 	for (unsigned c = 0; c < _categoryButtons.size(); ++c) {
 		ImageButton* button = _categoryButtons[c];
 		button->x = margin;
-		button->y = 8 + c * (buttonHeight + 3);
+		button->y = reservedHotbarTop + c * (buttonHeight + 3);
 		button->width = buttonHeight;
 		button->height = buttonHeight;
 	}
 
 	const int detailsWidth = Mth::Max(76, Mth::Min(84, width / 3));
 	paneRect.x = margin + buttonHeight + gap;
-	paneRect.y = 8;
+	paneRect.y = reservedHotbarTop;
 	paneRect.w = Mth::Max(72, width - paneRect.x - detailsWidth - gap - margin);
-	paneRect.h = height - 16;
+	paneRect.h = height - paneRect.y - 4;
 
 	const int detailsX = paneRect.x + paneRect.w + gap;
 	btnCraft.x = detailsX + 5;
@@ -264,7 +274,7 @@ void PaneCraftingScreen::setupPositions3ds() {
 
 	btnClose.width = btnClose.height = 18;
 	btnClose.x = width - btnClose.width - 2;
-	btnClose.y = 2;
+	btnClose.y = paneRect.y - 1;
 
 	int oldCategory = currentCategory;
 	currentCategory = -1;
@@ -348,6 +358,7 @@ void PaneCraftingScreen::renderDetails3ds(float a) {
 
 	char buf[16];
 	const float scale = 2.0f / 3.0f;
+	const int inactive3ds = 0xff9a9093;
 	for (unsigned int i = 0; i < currentItem->neededItems.size(); ++i) {
 		const float xx = Gui::floorAlignToScreenPixel(slotBx + slotWidth * (float)(i % 2) + 3.0f);
 		const float yy = Gui::floorAlignToScreenPixel(slotBy + slotHeight * (float)(i / 2) + 15.0f);
@@ -362,8 +373,7 @@ void PaneCraftingScreen::renderDetails3ds(float a) {
 		if (req.enough())
 			drawScaledFont(minecraft->font, buf, xx, yy, scale, rgbActive, true);
 		else {
-			drawScaledFont(minecraft->font, buf, xx + 1.0f, yy + 1.0f, scale, rgbInactiveShadow, false);
-			drawScaledFont(minecraft->font, buf, xx, yy, scale, rgbInactive, false);
+			drawScaledFont(minecraft->font, buf, xx, yy, scale, inactive3ds, true);
 		}
 	}
 

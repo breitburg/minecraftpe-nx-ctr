@@ -91,6 +91,10 @@ void ProgressScreen::render( int xm, int ym, float a )
 
 bool ProgressScreen::isInGameScreen() { return false; }
 
+#ifdef __3DS__
+bool ProgressScreen::renderOnTopScreen3ds() { return true; }
+#endif
+
 #if defined(__VITA__) || defined(_WIN32) || defined(RPI) || defined(__SWITCH__) || defined(__3DS__)
 // honestly this is probably just a genuine bug in MCPE, and maybe shouldnt be ifdef vita,
 void ProgressScreen::keyPressed(int eventKey) {
