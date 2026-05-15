@@ -22,6 +22,19 @@ void drawScaledText(Font* font, const char* text, float x, float y, float scale,
 	glPopMatrix2();
 }
 
+std::string fitText(Font* font, const std::string& text, int maxWidth) {
+	if (font->width(text) <= maxWidth)
+		return text;
+
+	std::string out = text;
+	while (out.length() > 3 && font->width(out + "...") > maxWidth)
+		out.erase(out.length() - 1);
+
+	if (out.length() > 3)
+		out += "...";
+	return out;
+}
+
 }
 
 ItemPane::ItemPane( IItemPaneCallback* screen,
@@ -70,13 +83,70 @@ void ItemPane::renderBatch( std::vector<GridItem>& items, float alpha )
 	if (cat.empty()) return;
 
 	glEnable2(GL_SCISSOR_TEST);
-	GLuint x = (GLuint)(screenScale * bbox.x);
-	GLuint y = physicalScreenHeight - (GLuint)(screenScale * (bbox.y + bbox.h));
-	GLuint w = (GLuint)(screenScale * bbox.w);
-	GLuint h = (GLuint)(screenScale * bbox.h);
+	GLuint x = (GLuint)(Gui::ScissorScaleX * bbox.x);
+	GLuint y = physicalScreenHeight - (GLuint)(Gui::ScissorScaleY * (bbox.y + bbox.h));
+	GLuint w = (GLuint)(Gui::ScissorScaleX * bbox.w);
+	GLuint h = (GLuint)(Gui::ScissorScaleY * bbox.h);
 	glScissor(x, y, w, h);
 
 	Tesselator& t = Tesselator::instance;
+
+#ifdef __3DS__
+	glDisable2(GL_SCISSOR_TEST);
+
+	const float rowH = (float)itemBbox.h;
+	const float iconX = (float)bbox.x + 3.0f;
+	const float textX = (float)bbox.x + 23.0f;
+	const float maxTextW = (float)bbox.w - 48.0f;
+
+	for (unsigned int i = 0; i < items.size(); ++i) {
+		GridItem& item = items[i];
+		CItem* citem = cat[item.id];
+
+		const bool craftable = citem->canCraft();
+		const int bg = item.selected ? 0xff5f6763 : (craftable ? 0xff373234 : 0xff2a2729);
+		const int textColor = craftable ? rgbActive : rgbInactive;
+
+		const float y0 = Gui::floorAlignToScreenPixel(item.yf);
+		const float y1 = Gui::floorAlignToScreenPixel(item.yf + rowH - 1.0f);
+		fill((float)bbox.x, y0, (float)(bbox.x + bbox.w - 1), y1, bg);
+		if (item.selected)
+			fill((float)bbox.x, y0, (float)(bbox.x + bbox.w - 1), y0 + 1.0f, 0xffa5d38c);
+
+		ItemRenderer::renderGuiItem(NULL, textures, &citem->item,
+			Gui::floorAlignToScreenPixel(iconX),
+			Gui::floorAlignToScreenPixel(item.yf + 3.0f), 16, 16, false);
+
+		const std::string label = fitText(f, citem->text, (int)maxTextW);
+		if (craftable) {
+			f->drawShadow(label,
+				Gui::floorAlignToScreenPixel(textX),
+				Gui::floorAlignToScreenPixel(item.yf + 7.0f), textColor);
+		} else {
+			f->draw(label,
+				Gui::floorAlignToScreenPixel(textX + 1.0f),
+				Gui::floorAlignToScreenPixel(item.yf + 8.0f), rgbInactiveShadow);
+			f->draw(label,
+				Gui::floorAlignToScreenPixel(textX),
+				Gui::floorAlignToScreenPixel(item.yf + 7.0f), textColor);
+		}
+
+		char buf[64] = {0};
+		int c = Gui::itemCountItoa(buf, citem->inventoryCount);
+		if (c > 0) {
+			drawScaledText(f, buf,
+				Gui::floorAlignToScreenPixel((float)bbox.x + (float)bbox.w - 5.0f - c * 4.0f),
+				Gui::floorAlignToScreenPixel(item.yf + 13.0f),
+				0.6667f, textColor, craftable);
+		}
+	}
+
+	fillGradient((float)bbox.x, (float)bbox.y, (float)(bbox.x + bbox.w), (float)(bbox.y + 12), 0xaa000000, 0x00000000);
+	fillGradient((float)bbox.x, (float)(bbox.y + bbox.h - 12), (float)(bbox.x + bbox.w), (float)(bbox.y + bbox.h), 0x00000000, 0xaa000000);
+
+	drawScrollBar(vScroll);
+	return;
+#endif
 
 	t.beginOverride();
 	for (unsigned int i = 0; i < items.size(); ++i) {

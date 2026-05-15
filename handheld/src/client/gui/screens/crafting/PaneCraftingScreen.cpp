@@ -1,10 +1,12 @@
 #include "PaneCraftingScreen.h"
 #include "../touch/TouchStartMenuScreen.h"
 #include "../../Screen.h"
+#include "../../Font.h"
 #include "../../components/NinePatch.h"
 #include "../../../Minecraft.h"
 #include "../../../player/LocalPlayer.h"
 #include "../../../renderer/Tesselator.h"
+#include "../../../renderer/Textures.h"
 #include "../../../renderer/entity/ItemRenderer.h"
 #include "../../../../world/item/Item.h"
 #include "../../../../world/item/crafting/Recipes.h"
@@ -42,6 +44,17 @@ int getDescriptionPaneWidth(int width) {
 	(void)width;
 	return descFrameWidth;
 #endif
+}
+
+void drawScaledFont(Font* font, const char* text, float x, float y, float scale, int color, bool shadow) {
+	glPushMatrix2();
+	glTranslatef2(x, y, 0.0f);
+	glScalef2(scale, scale, 1.0f);
+	if (shadow)
+		font->drawShadow(text, 0.0f, 0.0f, color);
+	else
+		font->draw(text, 0.0f, 0.0f, color);
+	glPopMatrix2();
 }
 }
 
@@ -167,6 +180,11 @@ void PaneCraftingScreen::initCategories() {
 }
 
 void PaneCraftingScreen::setupPositions() {
+#ifdef __3DS__
+	setupPositions3ds();
+	return;
+#endif
+
 	// Left  - Categories
 	const int buttonHeight = getCategoryButtonSize(height, numCategories);
 	for (unsigned c = 0; c < _categoryButtons.size(); ++c) {
@@ -211,14 +229,178 @@ void PaneCraftingScreen::setupPositions() {
 
 	int oldCategory = currentCategory;
 	currentCategory = -1;
-	buttonClicked(_categoryButtons[pane?oldCategory:0]);
+	const int nextCategory = (pane && oldCategory >= 0) ? oldCategory : 0;
+	buttonClicked(_categoryButtons[nextCategory]);
 }
 
 void PaneCraftingScreen::tick() {
 	if (pane) pane->tick();
 }
 
+#ifdef __3DS__
+void PaneCraftingScreen::setupPositions3ds() {
+	const int margin = 4;
+	const int buttonHeight = 23;
+	const int gap = 4;
+
+	for (unsigned c = 0; c < _categoryButtons.size(); ++c) {
+		ImageButton* button = _categoryButtons[c];
+		button->x = margin;
+		button->y = 8 + c * (buttonHeight + 3);
+		button->width = buttonHeight;
+		button->height = buttonHeight;
+	}
+
+	const int detailsWidth = Mth::Max(76, Mth::Min(84, width / 3));
+	paneRect.x = margin + buttonHeight + gap;
+	paneRect.y = 8;
+	paneRect.w = Mth::Max(72, width - paneRect.x - detailsWidth - gap - margin);
+	paneRect.h = height - 16;
+
+	const int detailsX = paneRect.x + paneRect.w + gap;
+	btnCraft.x = detailsX + 5;
+	btnCraft.y = paneRect.y + 8;
+	btnCraft.setSize((float)Mth::Max(56, detailsWidth - 10), 48.0f);
+
+	btnClose.width = btnClose.height = 18;
+	btnClose.x = width - btnClose.width - 2;
+	btnClose.y = 2;
+
+	int oldCategory = currentCategory;
+	currentCategory = -1;
+	const int nextCategory = (pane && oldCategory >= 0) ? oldCategory : 0;
+	buttonClicked(_categoryButtons[nextCategory]);
+}
+
+void PaneCraftingScreen::drawPanel3ds(int x, int y, int w, int h, int fillColor, int borderColor) {
+	fill(x, y, x + w, y + h, fillColor);
+	fill(x, y, x + w, y + 1, borderColor);
+	fill(x, y + h - 1, x + w, y + h, 0xff151315);
+	fill(x, y, x + 1, y + h, borderColor);
+	fill(x + w - 1, y, x + w, y + h, 0xff151315);
+}
+
+void PaneCraftingScreen::drawSprite3ds(int x, int y, int w, int h, int sx, int sy, int sw, int sh) {
+	TextureId texId = minecraft->textures->loadAndBindTexture("gui/spritesheet.png");
+	const TextureData* data = Textures::isTextureIdValid(texId) ? minecraft->textures->getTemporaryTextureData(texId) : NULL;
+	const float us = data ? (1.0f / (float)data->w) : (1.0f / 128.0f);
+	const float vs = data ? (1.0f / (float)data->h) : (1.0f / 128.0f);
+
+	Tesselator& t = Tesselator::instance;
+	t.begin();
+	t.colorABGR(0xffffffff);
+	t.vertexUV((float)x,     (float)(y + h), blitOffset, (float)sx * us,        (float)(sy + sh) * vs);
+	t.vertexUV((float)(x+w), (float)(y + h), blitOffset, (float)(sx + sw) * us, (float)(sy + sh) * vs);
+	t.vertexUV((float)(x+w), (float)y,       blitOffset, (float)(sx + sw) * us, (float)sy * vs);
+	t.vertexUV((float)x,     (float)y,       blitOffset, (float)sx * us,        (float)sy * vs);
+	t.draw();
+}
+
+void PaneCraftingScreen::renderCategoryBar3ds(int xm, int ym) {
+	for (unsigned c = 0; c < _categoryButtons.size(); ++c) {
+		ImageButton* button = _categoryButtons[c];
+		const bool selected = selectedCategoryButton == button;
+		const bool hovered = button->active && button->isInside(xm, ym);
+		const int fillColor = selected ? 0xff59645d : (hovered ? 0xff4a4447 : 0xff2d292c);
+		const int borderColor = selected ? 0xff93c47d : 0xff72676b;
+
+		drawPanel3ds(button->x, button->y, button->width, button->height, fillColor, borderColor);
+
+		const int icon = categoryIcons[c];
+		const int iconPad = 3;
+		drawSprite3ds(button->x + iconPad, button->y + iconPad,
+			button->width - 2 * iconPad, button->height - 2 * iconPad,
+			32 * (icon / 2), 64 + (icon & 1) * 32, 32, 32);
+	}
+}
+
+void PaneCraftingScreen::renderDetails3ds(float a) {
+	(void)a;
+
+	const int detailsX = paneRect.x + paneRect.w + 4;
+	const int detailsW = width - detailsX - 4;
+	drawPanel3ds(detailsX, paneRect.y, detailsW, paneRect.h, 0xff2a2729, 0xff72676b);
+
+	if (!currentItem)
+		return;
+
+	const bool craftable = currentItem->canCraft();
+	drawPanel3ds(btnCraft.x, btnCraft.y, btnCraft.width, btnCraft.height,
+		craftable ? 0xff40543b : 0xff353033,
+		craftable ? 0xff93c47d : 0xff75676c);
+
+	const float slotWidth = (float)btnCraft.width / 2.0f;
+	const float slotHeight = (float)btnCraft.height / 2.0f;
+	const float slotBx = (float)btnCraft.x + slotWidth / 2.0f - 8.0f;
+	const float slotBy = (float)btnCraft.y + slotHeight / 2.0f - 9.0f;
+
+	ItemInstance reqItem;
+	for (unsigned int i = 0; i < currentItem->neededItems.size(); ++i) {
+		const float xx = slotBx + slotWidth * (float)(i % 2);
+		const float yy = slotBy + slotHeight * (float)(i / 2);
+		CItem::ReqItem& req = currentItem->neededItems[i];
+		reqItem = req.item;
+		if (reqItem.getAuxValue() == -1) reqItem.setAuxValue(0);
+
+		fill(xx - 2.0f, yy - 2.0f, xx + 18.0f, yy + 18.0f, 0xff1f1c1e);
+		ItemRenderer::renderGuiItem(NULL, minecraft->textures, &reqItem, xx, yy, 16, 16, true);
+	}
+
+	char buf[16];
+	const float scale = 2.0f / 3.0f;
+	for (unsigned int i = 0; i < currentItem->neededItems.size(); ++i) {
+		const float xx = Gui::floorAlignToScreenPixel(slotBx + slotWidth * (float)(i % 2) + 3.0f);
+		const float yy = Gui::floorAlignToScreenPixel(slotBy + slotHeight * (float)(i / 2) + 15.0f);
+		CItem::ReqItem& req = currentItem->neededItems[i];
+
+		int bufIndex = 0;
+		bufIndex += Gui::itemCountItoa(&buf[bufIndex], req.has);
+		strcpy(&buf[bufIndex], "/"); bufIndex += 1;
+		bufIndex += Gui::itemCountItoa(&buf[bufIndex], req.item.count);
+		buf[bufIndex] = 0;
+
+		if (req.enough())
+			drawScaledFont(minecraft->font, buf, xx, yy, scale, rgbActive, true);
+		else {
+			drawScaledFont(minecraft->font, buf, xx + 1.0f, yy + 1.0f, scale, rgbInactiveShadow, false);
+			drawScaledFont(minecraft->font, buf, xx, yy, scale, rgbInactive, false);
+		}
+	}
+
+	minecraft->font->drawWordWrap(currentItemDesc,
+		(float)detailsX + 4.0f,
+		(float)(btnCraft.y + btnCraft.height + 8),
+		(float)detailsW - 8.0f,
+		rgbActive);
+}
+
+void PaneCraftingScreen::render3ds(int xm, int ym, float a) {
+	(void)a;
+
+	fill(0, 0, width, height, 0xff171416);
+	fill(0, 0, width, 6, 0xff2d292c);
+
+	renderCategoryBar3ds(xm, ym);
+
+	drawPanel3ds(paneRect.x - 1, paneRect.y - 1, paneRect.w + 2, paneRect.h + 2, 0xff201d1f, 0xff72676b);
+	if (pane)
+		pane->render(xm, ym, a);
+
+	renderDetails3ds(a);
+
+	const bool closeHover = btnClose.isInside(xm, ym);
+	drawPanel3ds(btnClose.x, btnClose.y, btnClose.width, btnClose.height,
+		closeHover ? 0xff72504f : 0xff3d3638, closeHover ? 0xffd08a83 : 0xff8c7e82);
+	drawSprite3ds(btnClose.x + 1, btnClose.y + 1, 16, 16, 60, 0, 18, 18);
+}
+#endif
+
 void PaneCraftingScreen::render(int xm, int ym, float a) {
+#ifdef __3DS__
+	render3ds(xm, ym, a);
+	return;
+#endif
+
 	const int N = 5;
 	static StopwatchNLast r(N);
 	//renderBackground();
@@ -258,12 +440,9 @@ void PaneCraftingScreen::render(int xm, int ym, float a) {
 
 		char buf[16];
 		const float scale = 2.0f / 3.0f;
-		const float invScale = 1.0f / scale;
-		t.beginOverride();
-		t.scale2d(scale, scale);
 		for (unsigned int i = 0; i < currentItem->neededItems.size(); ++i) {
-			const float xx =  4 + invScale * (slotBx + slotWidth  * (float)(i % 2));
-			const float yy = 23 + invScale * (slotBy + slotHeight * (float)(i / 2));
+			const float xx = Gui::floorAlignToScreenPixel(slotBx + slotWidth  * (float)(i % 2) + 3.0f);
+			const float yy = Gui::floorAlignToScreenPixel(slotBy + slotHeight * (float)(i / 2) + 15.0f);
 			CItem::ReqItem& req = currentItem->neededItems[i];
 
 			int bufIndex = 0;
@@ -273,14 +452,12 @@ void PaneCraftingScreen::render(int xm, int ym, float a) {
 
 			buf[bufIndex] = 0;
 			if (req.enough())
-				minecraft->font->drawShadow(buf, xx, yy, rgbActive);
+				drawScaledFont(minecraft->font, buf, xx, yy, scale, rgbActive, true);
 			else {
-				minecraft->font->draw(buf, xx+1, yy+1, rgbInactiveShadow);
-				minecraft->font->draw(buf, xx, yy, rgbInactive);
+				drawScaledFont(minecraft->font, buf, xx + 1.0f, yy + 1.0f, scale, rgbInactiveShadow, false);
+				drawScaledFont(minecraft->font, buf, xx, yy, scale, rgbInactive, false);
 			}
 		}
-		t.resetScale();
-		t.endOverrideAndDraw();
 
 		//minecraft->font->drawWordWrap(currentItemDesc, rightBx + 2, (float)btnCraft.y + btnCraft.h + 6, descFrameWidth-4, rgbActive);
 		minecraft->font->drawWordWrap(currentItemDesc, (float)btnCraft.x, (float)(btnCraft.y + btnCraft.height + 6), (float)btnCraft.width, rgbActive);

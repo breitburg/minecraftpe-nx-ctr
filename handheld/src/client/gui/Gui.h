@@ -42,6 +42,10 @@ public:
 
 	void tick();
 	void render(float a, bool mouseFree, int xMouse, int yMouse);
+#ifdef __3DS__
+	void renderTopHud(float a);
+	void renderBottomHotbar(float a);
+#endif
 
 	void renderToolBar( float a, int ySlot, const int screenWidth );
 
@@ -76,6 +80,8 @@ public:
 	static float floorAlignToScreenPixel(float);
 	static int itemCountItoa(char* buf, int count);
 private:
+	void renderInGameHud(float a, bool renderStatus, bool renderHotbar);
+	int getHotbarYSlot(int screenHeight) const;
 	void renderVignette(float br, int w, int h);
 	void renderSlot(int slot, int x, int y, float a);
 	void tickItemDrop();
@@ -85,6 +91,8 @@ public:
 	std::string selectedName;
 	static float InvGuiScale;
 	static float GuiScale;
+	static float ScissorScaleX;
+	static float ScissorScaleY;
 
 private:
 	int MAX_MESSAGE_WIDTH;

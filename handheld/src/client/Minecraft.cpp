@@ -1385,6 +1385,8 @@ void Minecraft::setSize(int w, int h) {
 		Gui::GuiScale = 1.0f;
 
 	Gui::InvGuiScale = 1.0f / Gui::GuiScale;
+	Gui::ScissorScaleX = Gui::GuiScale;
+	Gui::ScissorScaleY = Gui::GuiScale;
 	int screenWidth  = (int)(width  * Gui::InvGuiScale);
 	int screenHeight = (int)(height * Gui::InvGuiScale);
 

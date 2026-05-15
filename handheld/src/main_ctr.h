@@ -76,7 +76,7 @@ static void initGraphics(App* app, AppContext* state) {
         app->onGraphicsReset(*state);
     }
 
-    app->setSize(400, 240);
+    app->setSize(NOVA_SCREEN_W, NOVA_SCREEN_H);
 }
 
 static void deinitGraphics() {
@@ -95,8 +95,8 @@ void handleTouch() {
     bool isTouching = (hidKeysHeld() & KEY_TOUCH) != 0;
 
     if (isTouching) {
-        int16_t x = (touch.px * 400) / 320;
-        int16_t y = touch.py;
+        int16_t x = (touch.px * NOVA_SCREEN_W) / NOVA_SCREEN_BOTTOM_H;
+        int16_t y = (touch.py * NOVA_SCREEN_H) / NOVA_SCREEN_BOTTOM_W;
 
         if (!wasTouching) {
             Mouse::feed(MouseAction::ACTION_LEFT, MouseAction::DATA_DOWN, x, y);

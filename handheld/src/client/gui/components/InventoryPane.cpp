@@ -12,6 +12,18 @@ namespace Touch {
 
 static const int By = 6; // Border Frame height
 
+namespace {
+
+void renderSlotTextScaled(Gui& gui, const ItemInstance* item, float x, float y, float scale) {
+	glPushMatrix2();
+	glTranslatef2(x, y, 0.0f);
+	glScalef2(scale, scale, 1.0f);
+	gui.renderSlotText(item, 0.0f, 0.0f, true, true);
+	glPopMatrix2();
+}
+
+}
+
 InventoryPane::InventoryPane( IInventoryPaneCallback* screen, Minecraft* mc, const IntRectangle& rect, int paneWidth, float clickMarginH, int numItems, int itemSize, int itemBorderSize)
 :	screen(screen),
 	mc(mc),
@@ -61,10 +73,10 @@ void InventoryPane::renderBatch( std::vector<GridItem>& items, float alpha )
 	std::vector<const ItemInstance*> inventoryItems = screen->getItems(this);
 
 	glEnable2(GL_SCISSOR_TEST);
-	GLuint x = (GLuint)(screenScale * bbox.x);
-	GLuint y = mc->height - (GLuint)(screenScale * (bbox.y + bbox.h));
-	GLuint w = (GLuint)(screenScale * bbox.w);
-	GLuint h = (GLuint)(screenScale * bbox.h);
+	GLuint x = (GLuint)(Gui::ScissorScaleX * bbox.x);
+	GLuint y = mc->height - (GLuint)(Gui::ScissorScaleY * (bbox.y + bbox.h));
+	GLuint w = (GLuint)(Gui::ScissorScaleX * bbox.w);
+	GLuint h = (GLuint)(Gui::ScissorScaleY * bbox.h);
 	glScissor(x, y, w, h);
 
 	Tesselator& t = Tesselator::instance;
@@ -125,24 +137,16 @@ void InventoryPane::renderBatch( std::vector<GridItem>& items, float alpha )
 
 	if (!mc->isCreativeMode()) {
 		const float ikText = Gui::InvGuiScale + Gui::InvGuiScale;
-		const float kText = 0.5f * Gui::GuiScale;
-		t.beginOverride();
-		t.scale2d(ikText, ikText);
 		for (unsigned int i = 0; i < items.size(); ++i) {
 			GridItem& item = items[i];
 			const ItemInstance* citem = inventoryItems[item.id];
 			if (!citem) continue;
 
-			char buf[64] = {0};
-			/*int c = */ Gui::itemCountItoa(buf, citem->count);
-
-			float tx = Gui::floorAlignToScreenPixel(kText * (item.xf + BorderPixels + 3));
-			float ty = Gui::floorAlignToScreenPixel(kText * (item.yf + BorderPixels + 3));
-			mc->gui.renderSlotText(citem, tx, ty, true, true);
+			const float tx = Gui::floorAlignToScreenPixel(item.xf + BorderPixels + 3);
+			const float ty = Gui::floorAlignToScreenPixel(item.yf + BorderPixels + 3);
+			renderSlotTextScaled(mc->gui, citem, tx, ty, ikText);
 		}
-		t.resetScale();
 		glEnable2(GL_BLEND);
-		t.endOverrideAndDraw();
 	}
 
 	if (renderDecorations) {

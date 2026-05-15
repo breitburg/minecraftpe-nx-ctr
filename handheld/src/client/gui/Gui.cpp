@@ -23,6 +23,8 @@
 
 float Gui::InvGuiScale = 1.0f / 3.0f;
 float Gui::GuiScale = 1.0f / Gui::InvGuiScale;
+float Gui::ScissorScaleX = Gui::GuiScale;
+float Gui::ScissorScaleY = Gui::GuiScale;
 const float Gui::DropTicks = 40.0f;
 
 //#include <android/log.h>
@@ -58,6 +60,20 @@ Gui::~Gui()
 }
 
 void Gui::render(float a, bool mouseFree, int xMouse, int yMouse) {
+	(void)mouseFree;
+	(void)xMouse;
+	(void)yMouse;
+
+	renderInGameHud(a);
+}
+
+#ifdef __3DS__
+void Gui::renderTopHud(float a) {
+	renderInGameHud(a);
+}
+#endif
+
+void Gui::renderInGameHud(float a) {
 
 	if (!minecraft->level || !minecraft->player)
 		return;
@@ -77,7 +93,7 @@ void Gui::render(float a, bool mouseFree, int xMouse, int yMouse) {
     // T: 7
     // L: 6
     // F: 3
-	int ySlot = screenHeight - 16 - 3;
+	int ySlot = getHotbarYSlot(screenHeight);
 
 	if (minecraft->gameMode->canHurtPlayer()) {
 		minecraft->textures->loadAndBindTexture("gui/icons.png");
@@ -121,8 +137,16 @@ void Gui::render(float a, bool mouseFree, int xMouse, int yMouse) {
 //        glPopMatrix2();
 //
 //        glEnable(GL_ALPHA_TEST);
-    glDisable(GL_BLEND);
+	glDisable(GL_BLEND);
 	glEnable2(GL_ALPHA_TEST);
+}
+
+int Gui::getHotbarYSlot(int screenHeight) const {
+	int ySlot = screenHeight - 16 - 3;
+#ifdef __3DS__
+	ySlot -= 18;
+#endif
+	return ySlot;
 }
 
 int Gui::getSlotIdAt(int x, int y) {
@@ -131,7 +155,8 @@ int Gui::getSlotIdAt(int x, int y) {
 	x = (int)(x * InvGuiScale);
 	y = (int)(y * InvGuiScale);
 
-	if (y < (screenHeight - 16 - 3) || y > screenHeight)
+	const int yBase = getHotbarYSlot(screenHeight) - 3;
+	if (y < yBase || y > yBase + 25)
 		return -1;
 
 	int xBase = 2 + screenWidth / 2 - getNumSlots() * 10;
@@ -160,7 +185,7 @@ void Gui::getSlotPos(int slot, int& posX, int& posY) {
 	int screenWidth = (int)(minecraft->width * InvGuiScale);
 	int screenHeight = (int)(minecraft->height * InvGuiScale);
 	posX = screenWidth / 2 - getNumSlots() * 10 + slot * 20, 
-	posY = screenHeight - 22;
+	posY = getHotbarYSlot(screenHeight) - 3;
 }
 
 RectangleArea Gui::getRectangleArea(int extendSide) {
@@ -168,13 +193,15 @@ RectangleArea Gui::getRectangleArea(int extendSide) {
 	const float pCenterX   = 2.0f + (float)(minecraft->width / 2);
 	const float pHalfWidth = (1.0f + (getNumSlots() * 10 + Spacing)) * Gui::GuiScale;
 	const float pHeight    = (22 + Spacing) * Gui::GuiScale;
+	const float pTop = getHotbarYSlot((int)(minecraft->height * InvGuiScale)) * Gui::GuiScale;
+	const float pBottom = pTop + pHeight;
 
 	if (extendSide < 0)
-		return RectangleArea(0, (float)minecraft->height-pHeight, pCenterX+pHalfWidth+2, (float)minecraft->height);
+		return RectangleArea(0, pTop, pCenterX+pHalfWidth+2, pBottom);
 	if (extendSide > 0)
-		return RectangleArea(pCenterX-pHalfWidth, (float)minecraft->height-pHeight, (float)minecraft->width, (float)minecraft->height);
+		return RectangleArea(pCenterX-pHalfWidth, pTop, (float)minecraft->width, pBottom);
 	
-	return RectangleArea(pCenterX-pHalfWidth, (float)minecraft->height-pHeight, pCenterX+pHalfWidth+2, (float)minecraft->height);
+	return RectangleArea(pCenterX-pHalfWidth, pTop, pCenterX+pHalfWidth+2, pBottom);
 }
 
 void Gui::handleClick(int button, int x, int y) {
@@ -487,10 +514,10 @@ void Gui::postError( int errCode )
 
 void Gui::setScissorRect( const IntRectangle& bbox )
 {
-	GLuint x = (GLuint)(GuiScale * bbox.x);
-	GLuint y = minecraft->height - (GLuint)(GuiScale * (bbox.y + bbox.h));
-	GLuint w = (GLuint)(GuiScale * bbox.w);
-	GLuint h = (GLuint)(GuiScale * bbox.h);
+	GLuint x = (GLuint)(ScissorScaleX * bbox.x);
+	GLuint y = minecraft->height - (GLuint)(ScissorScaleY * (bbox.y + bbox.h));
+	GLuint w = (GLuint)(ScissorScaleX * bbox.w);
+	GLuint h = (GLuint)(ScissorScaleY * bbox.h);
 	glScissor(x, y, w, h);
 }
 
@@ -795,7 +822,6 @@ void Gui::renderToolBar( float a, int ySlot, const int screenWidth ) {
 	glScalef2(InvGuiScale + InvGuiScale, InvGuiScale + InvGuiScale, 1);
 	const float k = 0.5f * GuiScale;
 
-	t.beginOverride();
 	if (minecraft->gameMode->isSurvivalType()) {
 		x = baseItemX;
 		for (int i = 0; i < getNumSlots()-1; i++) {
@@ -805,8 +831,6 @@ void Gui::renderToolBar( float a, int ySlot, const int screenWidth ) {
 			x += 20;
 		}
 	}
-	minecraft->textures->loadAndBindTexture("font/default8.png");
-	t.endOverrideAndDraw();
 
 	glPopMatrix2();
 }

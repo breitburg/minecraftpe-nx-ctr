@@ -30,6 +30,14 @@
 
 static int _shTicks = -1;
 
+#ifdef __3DS__
+static const int kTopRenderTarget = 0;
+static const int kBottomRenderTarget = 2;
+// NovaGL names the bottom framebuffer dimensions in its rotated layout.
+static const int kBottomScreenWidth = NOVA_SCREEN_BOTTOM_H;
+static const int kBottomScreenHeight = NOVA_SCREEN_BOTTOM_W;
+#endif
+
 GameRenderer::GameRenderer( Minecraft* mc )
 :	mc(mc),
 	renderDistance(0),
@@ -126,6 +134,10 @@ extern int _t_keepPic;
 
 /*public*/
 void GameRenderer::render(float a) {
+#ifdef __3DS__
+	renderDualScreen3ds(a);
+	return;
+#endif
 	TIMER_PUSH("mouse");
 	if (mc->player && mc->mouseGrabbed) {
         mc->mouseHandler.poll();
@@ -225,6 +237,99 @@ void GameRenderer::render(float a) {
     }
 
 }
+
+#ifdef __3DS__
+void GameRenderer::renderDualScreen3ds(float a) {
+	TIMER_PUSH("mouse");
+	if (mc->player && mc->mouseGrabbed) {
+        mc->mouseHandler.poll();
+
+        float ss = mc->options.sensitivity * 0.6f + 0.2f;
+        float sens = (ss * ss * ss) * 8;
+        float xo = mc->mouseHandler.xd * sens * 4.f;
+        float yo = mc->mouseHandler.yd * sens * 4.f;
+
+		const float now = _tick + a;
+		float deltaT = now - _lastTickT;
+		if (deltaT > 3.0f) deltaT = 3.0f;
+		_lastTickT = now;
+
+		_rotX += xo;
+		_rotY += yo;
+
+        int yAxis = -1;
+        if (mc->options.invertYMouse) yAxis = 1;
+
+		bool screenCovering = mc->screen && !mc->screen->passEvents;
+		if (!screenCovering)
+		{
+			mc->player->turn(deltaT * _rotXlast, deltaT * _rotYlast * yAxis);
+		}
+    }
+
+	int xMouse = (int)(Mouse::getX() * Gui::InvGuiScale);
+	int yMouse = (int)(Mouse::getY() * Gui::InvGuiScale);
+	if (mc->useTouchscreen()) {
+		const int pid = Multitouch::getFirstActivePointerIdExThisUpdate();
+		if (pid >= 0) {
+			xMouse = (int)(Multitouch::getX(pid) * Gui::InvGuiScale);
+			yMouse = (int)(Multitouch::getY(pid) * Gui::InvGuiScale);
+		} else {
+			xMouse = -9999;
+			yMouse = -9999;
+		}
+	}
+	TIMER_POP();
+
+	useScreenScissor = false;
+
+	nova_set_render_target(kTopRenderTarget);
+	Gui::ScissorScaleX = Gui::GuiScale;
+	Gui::ScissorScaleY = Gui::GuiScale;
+	glViewport(0, 0, mc->width, mc->height);
+	if (mc->isLevelGenerated()) {
+		TIMER_PUSH("level");
+		if (_t_keepPic < 0) {
+			renderLevel(a);
+		}
+		TIMER_POP();
+
+		if (!mc->options.hideGui) {
+			TIMER_PUSH("hud");
+			setupGuiScreen(false);
+			mc->gui.renderTopHud(a);
+			TIMER_POP();
+		}
+	} else {
+		glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	}
+
+	nova_set_render_target(kBottomRenderTarget);
+	glViewport(0, 0, kBottomScreenWidth, kBottomScreenHeight);
+	Gui::ScissorScaleX = kBottomScreenWidth / (mc->width * Gui::InvGuiScale);
+	Gui::ScissorScaleY = kBottomScreenHeight / (mc->height * Gui::InvGuiScale);
+	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+	setupGuiScreen(true);
+
+	if (mc->isLevelGenerated()) {
+		if (mc->player && mc->screen == NULL) {
+			if (mc->inputHolder) mc->inputHolder->render(a);
+			if (mc->player->input) mc->player->input->render(a);
+		}
+	}
+
+	if (mc->screen != NULL) {
+		mc->screen->render(xMouse, yMouse, a);
+		if (mc->screen && !mc->screen->isInGameScreen())
+			sleepMs(15);
+	}
+
+	Gui::ScissorScaleX = Gui::GuiScale;
+	Gui::ScissorScaleY = Gui::GuiScale;
+	nova_set_render_target(kTopRenderTarget);
+}
+#endif
 
 /*public*/
 void GameRenderer::renderLevel(float a) {

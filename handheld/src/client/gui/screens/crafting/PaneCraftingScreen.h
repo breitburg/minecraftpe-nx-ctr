@@ -73,6 +73,14 @@ private:
 	void clearCategoryItems();
 
 	void craftSelectedItem();
+#ifdef __3DS__
+	void setupPositions3ds();
+	void render3ds(int xm, int ym, float a);
+	void renderCategoryBar3ds(int xm, int ym);
+	void renderDetails3ds(float a);
+	void drawPanel3ds(int x, int y, int w, int h, int fillColor, int borderColor);
+	void drawSprite3ds(int x, int y, int w, int h, int sx, int sy, int sw, int sh);
+#endif
 	std::vector<ImageButton*> _categoryButtons;
 
 	ItemList _items;

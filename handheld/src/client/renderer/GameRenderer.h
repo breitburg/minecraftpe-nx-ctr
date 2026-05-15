@@ -43,10 +43,13 @@ private:
 	void setupFog(int i);
 
 	void tickFov();
-	
 
 	void bobHurt(float a);
 	void bobView(float a);
+
+#ifdef __3DS__
+	void renderDualScreen3ds(float a);
+#endif
 
 	bool updateFreeformPickDirection(float a, Vec3& outDir);
 	void prepareAndRenderClouds(LevelRenderer* levelRenderer, float a);
