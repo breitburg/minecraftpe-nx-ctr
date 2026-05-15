@@ -696,10 +696,20 @@ bool LevelRenderer::updateDirtyChunks( Mob* player, bool force )
 				std::sort(nearChunks.begin(), nearChunks.end(), dirtyChunkSorter);
 			}
 
+			int nearBudget = force ? (int)nearChunks.size() : MAX_NEAR_REBUILDS_PER_FRAME;
+			int nearDone = 0;
 			for (int i = (int)nearChunks.size() - 1; i >= 0; i--) {
 				Chunk* chunk = nearChunks[i];
+				if (nearDone >= nearBudget) {
+					// Defer the rest to later frames so a burst of dirty
+					// chunks does not stall the frame for ~1 second.
+					dirtyChunks.push_back(chunk);
+					pendingChunkRemoved--;
+					continue;
+				}
 				chunk->rebuild();
 				chunk->setClean();
+				nearDone++;
 			}
 		}
 

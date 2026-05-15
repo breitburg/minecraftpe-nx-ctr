@@ -27,6 +27,9 @@ public:
     static const int CHUNK_SIZE;
     static const int MAX_VISIBLE_REBUILDS_PER_FRAME = 3;
     static const int MAX_INVISIBLE_REBUILDS_PER_FRAME = 1;
+    // Cap on nearby chunk mesh rebuilds per frame. Without this, a burst of
+    // newly loaded/dirtied chunks rebuilds all at once and freezes the frame.
+    static const int MAX_NEAR_REBUILDS_PER_FRAME = 4;
     
     float xOld;
     float yOld;

@@ -366,7 +366,7 @@ add_executable(${PROJECT_NAME}
         ${HANDHELD}/client/IConfigListener.cpp
         ${HANDHELD}/locale/I18n.cpp
 
-        ${HANDHELD}/platform/audio/SoundSystemSDL2.cpp
+        ${HANDHELD}/platform/audio/SoundSystemCtr.cpp
 
         ${HANDHELD}/main_ctr.h
         ${HANDHELD}/AppPlatform_ctr.h
