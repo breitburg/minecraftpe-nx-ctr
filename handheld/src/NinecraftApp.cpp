@@ -161,7 +161,14 @@ void NinecraftApp::update()
     }
 
 #ifndef WIN32
-	updateStats();
+	if (options.renderDebug || Options::debugGl) {
+		updateStats();
+	} else {
+		_frames = 0;
+#ifndef STANDALONE_SERVER
+		Textures::textureChanges = 0;
+#endif
+	}
 #endif
 }
 

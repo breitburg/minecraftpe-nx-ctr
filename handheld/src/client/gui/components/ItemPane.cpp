@@ -9,6 +9,21 @@ const int rgbActive = 0xfff0f0f0;
 const int rgbInactive = 0xc0635558;
 const int rgbInactiveShadow = 0xc0aaaaaa;
 
+namespace {
+
+void drawScaledText(Font* font, const char* text, float x, float y, float scale, int color, bool shadow) {
+	glPushMatrix2();
+	glTranslatef2(x, y, 0.0f);
+	glScalef2(scale, scale, 1.0f);
+	if (shadow)
+		font->drawShadow(text, 0.0f, 0.0f, color);
+	else
+		font->draw(text, 0.0f, 0.0f, color);
+	glPopMatrix2();
+}
+
+}
+
 ItemPane::ItemPane( IItemPaneCallback* screen,
 					Textures* textures,
 					const IntRectangle& rect,
@@ -81,7 +96,6 @@ void ItemPane::renderBatch( std::vector<GridItem>& items, float alpha )
 	}
 	t.endOverrideAndDraw();
 
-	t.beginOverride();
 	for (unsigned int i = 0; i < items.size(); ++i) {
 		GridItem& item = items[i];
 		CItem* citem = cat[item.id];
@@ -90,15 +104,14 @@ void ItemPane::renderBatch( std::vector<GridItem>& items, float alpha )
 		int c = Gui::itemCountItoa(buf, citem->inventoryCount);
 
 		float xf = item.xf - 1;
+		const float countScale = 0.6667f;
+		const float countX = Gui::floorAlignToScreenPixel(xf + itemBbox.w - c * 4);
+		const float countY = Gui::floorAlignToScreenPixel(item.yf + itemBbox.h - 8);
 		if (citem->canCraft()) {
 			f->drawShadow(citem->text,
 				Gui::floorAlignToScreenPixel(xf + 2),
 				Gui::floorAlignToScreenPixel(item.yf + 6), rgbActive);
-			t.scale2d(0.6667f, 0.6667f);
-			f->drawShadow(buf,
-				Gui::floorAlignToScreenPixel(1.5f * (xf + itemBbox.w - c*4)),
-				Gui::floorAlignToScreenPixel(1.5f * (item.yf + itemBbox.h - 8)), rgbActive);
-			t.resetScale();
+			drawScaledText(f, buf, countX, countY, countScale, rgbActive, true);
 		} else {
 			f->draw(citem->text,
 				Gui::floorAlignToScreenPixel(xf + 3),
@@ -106,14 +119,9 @@ void ItemPane::renderBatch( std::vector<GridItem>& items, float alpha )
 			f->draw(citem->text,
 				Gui::floorAlignToScreenPixel(xf + 2),
 				Gui::floorAlignToScreenPixel(item.yf + 6), rgbInactive);
-			t.scale2d(0.6667f, 0.6667f);
-			f->draw(buf,
-				Gui::floorAlignToScreenPixel(1.5f * (xf + itemBbox.w - c*4)),
-				Gui::floorAlignToScreenPixel(1.5f * (item.yf + itemBbox.h - 8)), rgbInactive);
-			t.resetScale();
+			drawScaledText(f, buf, countX, countY, countScale, rgbInactive, false);
 		}
 	}
-	t.endOverrideAndDraw();
 
 	//fillGradient(bbox.x, bbox.y, bbox.x + bbox.w, 20, 0x00000000, 0x80ff0000)
 	if (isVertical) {

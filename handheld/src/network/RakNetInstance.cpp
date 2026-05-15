@@ -93,6 +93,10 @@ bool parseLanAnnouncement(const RakNet::RakString& data, RakNet::RakString& name
 
 RakNetInstance::RakNetInstance()
 :	rakPeer(NULL),
+	serverGuid(RakNet::UNASSIGNED_RAKNET_GUID),
+	isPingingForServers(false),
+	pingPort(0),
+	lastPingTime(0),
 	_isServer(false),
 	_isLoggedIn(false)
 {
@@ -133,6 +137,10 @@ bool RakNetInstance::host(const std::string& localName, int port, int maxConnect
 		rakPeer->Shutdown(500);
 #endif
 	}
+
+	_isServer = false;
+	_isLoggedIn = false;
+	serverGuid = RakNet::UNASSIGNED_RAKNET_GUID;
 
 	RakNet::SocketDescriptor socket(port, 0);
 	socket.socketFamily = AF_INET;
@@ -175,6 +183,7 @@ void RakNetInstance::announceServer(const std::string& localName)
 bool RakNetInstance::connect(const char* host, int port)
 {
 	_isLoggedIn = false;
+	serverGuid = RakNet::UNASSIGNED_RAKNET_GUID;
 	RakNet::StartupResult result = RakNet::RAKNET_STARTED;
 
 	RakNet::SocketDescriptor socket(0, 0);
@@ -216,6 +225,7 @@ void RakNetInstance::disconnect()
 	}
 	_isLoggedIn = false;
 	_isServer = false;
+	serverGuid = RakNet::UNASSIGNED_RAKNET_GUID;
 	isPingingForServers = false;
 }
 
@@ -264,7 +274,13 @@ void RakNetInstance::pingForHosts(int basePort)
 	if (!rakPeer->IsActive())
 	{
 		RakNet::SocketDescriptor socket(0, 0);
-		rakPeer->Startup(4, &socket, 1);
+		RakNet::StartupResult result = rakPeer->Startup(4, &socket, 1);
+		if (result != RakNet::RAKNET_STARTED && result != RakNet::RAKNET_ALREADY_STARTED)
+		{
+			printf("[RakNet] PING STARTUP FAILED! Error code: %d\n", result);
+			isPingingForServers = false;
+			return;
+		}
 	}
 
 	isPingingForServers = true;
@@ -421,6 +437,11 @@ void RakNetInstance::runEvents(NetEventCallback* callback)
 }
 
 void RakNetInstance::send(Packet& packet) {
+	if (!rakPeer || !rakPeer->IsActive())
+		return;
+	if (!_isServer && serverGuid == RakNet::UNASSIGNED_RAKNET_GUID)
+		return;
+
 	RakNet::BitStream bitStream;
 	packet.write(&bitStream);
 	if (_isServer)
@@ -434,6 +455,9 @@ void RakNetInstance::send(Packet& packet) {
 }
 
 void RakNetInstance::send(const RakNet::RakNetGUID& guid, Packet& packet) {
+	if (!rakPeer || !rakPeer->IsActive() || guid == RakNet::UNASSIGNED_RAKNET_GUID)
+		return;
+
 	RakNet::BitStream bitStream;
 	packet.write(&bitStream);
 	rakPeer->Send(&bitStream, packet.priority, packet.reliability, 0, guid, false);

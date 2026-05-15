@@ -120,6 +120,12 @@ static void checkGlError(const char* tag) {
 #endif /*GLDEBUG*/
 }
 
+static void flushLogOutput()
+{
+	fflush(stdout);
+	fflush(stderr);
+}
+
 /*static*/
 const char* Minecraft::progressMessages[] = {
 	"Locating server",
@@ -393,26 +399,64 @@ void Minecraft::prepareLevel(const std::string& title) {
 	Stopwatch L;
 
 	// Dont update lights if we load the level (ok, actually just with leveldata version=1.+(?))
-	if (!level->isNew())
+	const bool isNewLevel = level->isNew();
+#if defined(__3DS__) || defined(__NDS__)
+	const bool deferInitialLighting = isNewLevel;
+#else
+	const bool deferInitialLighting = false;
+#endif
+	if (!isNewLevel || deferInitialLighting)
 		level->setUpdateLights(false);
+
+	if (isNewLevel) {
+		LOGI("[WORLDGEN] prepare begin: title='%s' seed=%ld deferInitialLighting=%d chunkCache=%d\n",
+			title.c_str(), level->getSeed(), deferInitialLighting ? 1 : 0, CHUNK_CACHE_WIDTH);
+		flushLogOutput();
+	}
 
 	int Max = CHUNK_CACHE_WIDTH * CHUNK_CACHE_WIDTH;
 	int pp = 0;
 	for (int x = 8; x < (CHUNK_CACHE_WIDTH * CHUNK_WIDTH); x += CHUNK_WIDTH) {
         for (int z = 8; z < (CHUNK_CACHE_WIDTH * CHUNK_WIDTH); z += CHUNK_WIDTH) {
+			const int chunkIndex = pp + 1;
             progressStagePercentage = 100 * pp++ / Max;
             //LOGI("level generation progress %d\n", progressStagePercentage);
+			if (isNewLevel) {
+				LOGI("[WORLDGEN] warm chunk start: %d/%d sample=(%d,64,%d) pendingLights=%d\n",
+					chunkIndex, Max, x, z, level->getLightsToUpdate());
+				flushLogOutput();
+			}
 			B.start();
             level->getTile(x, 64, z);
 			B.stop();
+			if (isNewLevel) {
+				LOGI("[WORLDGEN] warm chunk terrain done: %d/%d sample=(%d,64,%d) pendingLights=%d\n",
+					chunkIndex, Max, x, z, level->getLightsToUpdate());
+				flushLogOutput();
+			}
 			L.start();
-			if (level->isNew())
-				while (level->updateLights())
-					;
+			if (isNewLevel && !deferInitialLighting) {
+				int lightPasses = 0;
+				while (level->updateLights()) {
+					++lightPasses;
+					if ((lightPasses & 31) == 0) {
+						LOGI("[WORLDGEN] warm chunk lighting: %d/%d passes=%d pendingLights=%d\n",
+							chunkIndex, Max, lightPasses, level->getLightsToUpdate());
+						flushLogOutput();
+					}
+				}
+				LOGI("[WORLDGEN] warm chunk lighting done: %d/%d passes=%d pendingLights=%d\n",
+					chunkIndex, Max, lightPasses, level->getLightsToUpdate());
+				flushLogOutput();
+			}
 			L.stop();
         }
     }
 	A.stop();
+	if (isNewLevel) {
+		LOGI("[WORLDGEN] warm chunks complete: pendingLights=%d\n", level->getLightsToUpdate());
+		flushLogOutput();
+	}
 	level->setUpdateLights(true);
 
 	C.start();
@@ -420,23 +464,46 @@ void Minecraft::prepareLevel(const std::string& title) {
 	{
 		for (int z = 0; z < CHUNK_CACHE_WIDTH; z++)
 		{
+			if (isNewLevel) {
+				LOGI("[WORLDGEN] cleanup chunk start: (%d,%d)\n", x, z);
+				flushLogOutput();
+			}
 			LevelChunk* chunk = level->getChunk(x, z);
 			if (chunk && !chunk->createdFromSave)
 			{
 				chunk->unsaved = false;
 				chunk->clearUpdateMap();
 			}
+			if (isNewLevel) {
+				LOGI("[WORLDGEN] cleanup chunk done: (%d,%d) chunk=%p\n", x, z, chunk);
+				flushLogOutput();
+			}
 		}
 	}
 	C.stop();
-
 	LOGI("status: 3\n");
 	progressStageStatusId = 3;
-	if (level->isNew()) {
+	if (isNewLevel) {
+		LOGI("[WORLDGEN] setInitialSpawn start\n");
+		flushLogOutput();
 		level->setInitialSpawn(); // @note: should obviously be called from Level itself
+		LOGI("[WORLDGEN] setInitialSpawn done\n");
+		flushLogOutput();
+		LOGI("[WORLDGEN] saveLevelData start\n");
+		flushLogOutput();
 		level->saveLevelData();
+		LOGI("[WORLDGEN] saveLevelData done\n");
+		flushLogOutput();
+		LOGI("[WORLDGEN] saveAll chunks start\n");
+		flushLogOutput();
 		level->getChunkSource()->saveAll(false);
+		LOGI("[WORLDGEN] saveAll chunks done\n");
+		flushLogOutput();
+		LOGI("[WORLDGEN] saveGame start\n");
+		flushLogOutput();
 		level->saveGame();
+		LOGI("[WORLDGEN] saveGame done\n");
+		flushLogOutput();
 	} else {
 		level->saveLevelData();
 		level->loadEntities();
@@ -446,9 +513,17 @@ void Minecraft::prepareLevel(const std::string& title) {
 	progressStageStatusId = 2;
 	LOGI("status: 2\n");
 
+	if (isNewLevel) {
+		LOGI("[WORLDGEN] level prepare start\n");
+		flushLogOutput();
+	}
 	D.start();
 	level->prepare();
 	D.stop();
+	if (isNewLevel) {
+		LOGI("[WORLDGEN] level prepare done\n");
+		flushLogOutput();
+	}
 
 	A.print("Generate level: ");
 	L.print(" - light: ");
@@ -456,6 +531,10 @@ void Minecraft::prepareLevel(const std::string& title) {
 	C.print(" - clear: ");
 	D.print(" - prepr: ");
 	progressStageStatusId = 0;
+	if (isNewLevel) {
+		LOGI("[WORLDGEN] prepare complete\n");
+		flushLogOutput();
+	}
 #ifdef __VITA__
 	scePowerSetArmClockFrequency(prevArmClk);
 	scePowerSetBusClockFrequency(prevBusClk);
@@ -1423,12 +1502,20 @@ void Minecraft::hostMultiplayer(int port) {
     netCallback = NULL;
 
 #if !defined(NO_NETWORK)
-	netCallback = new ServerSideNetworkHandler(this, raknetInstance);
+	bool hosted = false;
     #ifdef STANDALONE_SERVER
-        raknetInstance->host(user->name, port, 16);
+        hosted = raknetInstance->host(user->name, port, 16);
     #else
-        raknetInstance->host(user->name, port);
+        for (int portOffset = 0; portOffset < 4 && !hosted; ++portOffset) {
+            hosted = raknetInstance->host(user->name, port + portOffset);
+        }
     #endif
+
+	if (hosted) {
+		netCallback = new ServerSideNetworkHandler(this, raknetInstance);
+	} else {
+		LOGW("[RakNet] Multiplayer host unavailable; continuing local world offline.\n");
+	}
 #endif
 }
 
@@ -1657,7 +1744,7 @@ ICreator* Minecraft::getCreator()
 }
 
 void Minecraft::optionUpdated( const Options::Option* option, bool value ) {
-	if(netCallback != NULL && option == &Options::Option::SERVER_VISIBLE) {
+	if(netCallback != NULL && raknetInstance->isServer() && option == &Options::Option::SERVER_VISIBLE) {
 		ServerSideNetworkHandler* ss = (ServerSideNetworkHandler*) netCallback;
 		ss->allowIncomingConnections(value);
 	}

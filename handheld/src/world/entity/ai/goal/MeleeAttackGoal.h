@@ -24,10 +24,12 @@ public:
 		path(NULL)
 	{
 		setRequiredControlFlags(Control::MoveControlFlag | Control::LookControlFlag);
-    }
+	}
 	~MeleeAttackGoal() {
 		if (path) {
+#ifdef DEBUG_AI_PATHS
 			LOGI("mag-deleting %p (%d)\n", path, path->id);
+#endif
 			delete path;
 		}
 	}
@@ -39,7 +41,9 @@ public:
         if (attackType != 0 && !mob->isPlayer()) return false; //!attackType.isAssignableFrom(bestTarget.getClass())) return false;
         target = bestTarget;
 		if (path) {
+#ifdef DEBUG_AI_PATHS
 			LOGI("mag-canuse-deleting %p (%d)\n", path, path->id);
+#endif
 			delete path;
 		}
         path = mob->getNavigation()->createPath(target);

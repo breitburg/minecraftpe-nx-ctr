@@ -16,6 +16,19 @@ const float RandomLevelSource::SNOW_CUTOFF = 0.5f;
 const float RandomLevelSource::SNOW_SCALE = 0.3f;
 static const int MAX_BUFFER_SIZE = 1024;
 
+static void logGeneratedChunkStage(const char* stage, int x, int z)
+{
+#if defined(__3DS__) || defined(__NDS__) || defined(DEBUG_WORLDGEN)
+	LOGI("[WORLDGEN] generator chunk (%d,%d): %s\n", x, z, stage);
+	fflush(stdout);
+	fflush(stderr);
+#else
+	(void)stage;
+	(void)x;
+	(void)z;
+#endif
+}
+
 RandomLevelSource::RandomLevelSource(Level* level, long seed, int version, bool spawnMobs)
 :	random(seed),
 	level(level),
@@ -493,19 +506,26 @@ LevelChunk* RandomLevelSource::getChunk(int xOffs, int zOffs) {
 	if (it != chunkMap.end())
 		return it->second;
 
+	logGeneratedChunkStage("start", xOffs, zOffs);
     random.setSeed((long)(xOffs * 341872712l + zOffs * 132899541l)); //@fix
 
+	logGeneratedChunkStage("allocate blocks", xOffs, zOffs);
     unsigned char* blocks = new unsigned char[LevelChunk::ChunkBlockCount];
     LevelChunk* levelChunk = new LevelChunk(level, blocks, xOffs, zOffs);
 	chunkMap.insert(std::make_pair(hashedPos, levelChunk));
 
+	logGeneratedChunkStage("biomes start", xOffs, zOffs);
 	Biome** biomes = level->getBiomeSource()->getBiomeBlock(/*biomes, */xOffs * 16, zOffs * 16, 16, 16);
     float* temperatures = level->getBiomeSource()->temperatures;
+	logGeneratedChunkStage("prepareHeights start", xOffs, zOffs);
     prepareHeights(xOffs, zOffs, blocks, 0, temperatures);//biomes, temperatures);
+	logGeneratedChunkStage("buildSurfaces start", xOffs, zOffs);
     buildSurfaces(xOffs, zOffs, blocks, biomes);
 
 	//caveFeature.apply(this, level, xOffs, zOffs, blocks, LevelChunk::ChunkBlockCount);
+	logGeneratedChunkStage("recalcHeightmap start", xOffs, zOffs);
     levelChunk->recalcHeightmap();
+	logGeneratedChunkStage("done", xOffs, zOffs);
 
     return levelChunk;
 }

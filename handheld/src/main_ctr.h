@@ -172,16 +172,14 @@ void handleController() {
 int main(int argc, char** argv) {
     romfsInit();
 
-    printf("asdas");
-    printf("asdas");
-    printf("asdas");
     mkdir("sdmc:/3ds", 0777);
     mkdir("sdmc:/3ds/minecraftpe", 0777);
     mkdir("sdmc:/3ds/minecraftpe/cache", 0777);
 
     FILE* log_file = fopen("sdmc:/3ds/minecraftpe/debug_log.txt", "w");
     if (log_file) {
-        setvbuf(log_file, NULL, _IONBF, 0);
+        static char logBuffer[16 * 1024];
+        setvbuf(log_file, logBuffer, _IOFBF, sizeof(logBuffer));
         dup2(fileno(log_file), STDOUT_FILENO);
         dup2(fileno(log_file), STDERR_FILENO);
     }
@@ -221,7 +219,7 @@ int main(int argc, char** argv) {
         app->update();
 
         novaSwapBuffers();
-        if (frameCounter % 60 == 0) {
+        if (frameCounter % 600 == 0) {
             printMemoryStats();
         }
         frameCounter++;

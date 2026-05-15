@@ -169,7 +169,9 @@ private:
 				//LOGI(">>> %p, %p : %d, %d\n", x, to, x->hashCode(), to->hashCode());
 				if (__created > __maxCreated) {
 					__maxCreated = __created;
+#ifdef DEBUG_AI_PATHS
 					for (int i = 0; i < 1; ++i) LOGI("\tNEW MAX: Created %d nodes\n", __created);
+#endif
 				}
 				reconstruct_path(path, from, to); //@fix?
                 return true;
@@ -222,7 +224,9 @@ private:
 
 		if (__created > __maxCreated) {
 			__maxCreated = __created;
+#ifdef DEBUG_AI_PATHS
 			for (int i = 0; i < 1; ++i) LOGI("\tNEW MAX: Created %d nodes\n", __created);
+#endif
 		}
 
         if (closest == from)

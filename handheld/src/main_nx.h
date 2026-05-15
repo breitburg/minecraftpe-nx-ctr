@@ -291,8 +291,6 @@ int main(int argc, char** argv) {
 		handleController();
 		
 		app->update();
-
-		eglSwapBuffers(context.display, context.surface);
 	}
 
 	deinitEgl(&context);

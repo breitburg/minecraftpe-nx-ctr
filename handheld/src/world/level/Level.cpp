@@ -184,7 +184,11 @@ Player* Level::getNearestPlayer(float x, float y, float z, float maxDist) {
 void Level::tick() {
 	if (!isClientSide && levelData.getSpawnMobs()) {
 		static int _mobSpawnTick = 0;
+#if defined(__3DS__) || defined(__NDS__)
+		const int MobSpawnInterval = 10;
+#else
 		const int MobSpawnInterval = 2;
+#endif
 		if (++_mobSpawnTick >= MobSpawnInterval) {
 			_mobSpawnTick = 0;
 			TIMER_PUSH("mobSpawner");
@@ -287,7 +291,17 @@ void Level::tickTiles() {
 
     //if (delayUntilNextMoodSound > 0) delayUntilNextMoodSound--;
 	TIMER_PUSH("loop");
+#if defined(__3DS__) || defined(__NDS__)
+	const int randomTickChunkStride = 2;
+#else
+	const int randomTickChunkStride = 1;
+#endif
+	const int randomTickPhase = randomTickChunkStride > 1 ? (int)(levelData.getTime() % randomTickChunkStride) : 0;
+	int polledChunkIndex = 0;
     for (ChunkPosSet::iterator it = _chunksToPoll.begin(); it != _chunksToPoll.end(); ++it) {
+		if (randomTickChunkStride > 1 && (polledChunkIndex++ % randomTickChunkStride) != randomTickPhase) {
+			continue;
+		}
 		const ChunkPos& cp = *it;
         int xo = cp.x * 16;
         int zo = cp.z * 16;
