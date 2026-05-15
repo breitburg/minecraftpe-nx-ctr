@@ -61,7 +61,11 @@ void StartMenuScreen::init()
 #endif
 
 	buttons.push_back(&bHost);
+#ifndef __3DS__
+	// LAN-play отключён для 3DS — без сети по локалке игра не нужна,
+	// а кнопка только мозолит глаза.
 	buttons.push_back(&bJoin);
+#endif
 
 #ifndef RPI
 	buttons.push_back(&bOptions);
@@ -97,6 +101,21 @@ void StartMenuScreen::init()
 }
 
 void StartMenuScreen::setupPositions() {
+#ifdef __3DS__
+	// На 3DS у нас две раздельные плоскости: верхний экран — лого/инфо,
+	// нижний — кнопки. Раскладываем кнопки плотно по центру нижней зоны.
+	int yBase = height / 2 + 4;
+	bHost.y = yBase - 18;
+	bOptions.y = yBase + 2;
+	bTest.y = bBuy.y = bOptions.y;
+	// bJoin не используется (не добавлен в buttons), но всё равно ставим в стек
+	bJoin.y = yBase;
+
+	bHost.x = (width - bHost.width) / 2;
+	bJoin.x = (width - bJoin.width) / 2;
+	bOptions.x = (width - bOptions.width) / 2;
+	bTest.x = bBuy.x = bOptions.x + bOptions.width + 4;
+#else
 	int yBase = height / 2 + 25;
 
 	//#ifdef ANDROID
@@ -116,6 +135,7 @@ void StartMenuScreen::setupPositions() {
 	bJoin.x = (width - bJoin.width) / 2;
 	bOptions.x = (width - bJoin.width) / 2;
 	bTest.x = bBuy.x = bOptions.x + bOptions.width + 4;
+#endif
 
 	copyrightPosX = width - minecraft->font->width(copyright) - 1;
 	versionPosX = (width - minecraft->font->width(version)) / 2;// - minecraft->font->width(version) - 2;
@@ -158,24 +178,70 @@ void StartMenuScreen::buttonClicked(Button* button) {
 
 bool StartMenuScreen::isInGameScreen() { return false; }
 
+#ifdef __3DS__
+bool StartMenuScreen::renderOnTopScreen3ds() { return true; }
+#endif
+
 void StartMenuScreen::render( int xm, int ym, float a )
 {
+#if defined(__3DS__)
+	const bool isTop = Screen::s_isRenderingTopScreen3ds;
+
 	renderBackground();
 
-	#if defined(__3DS__)
-	// Масштабируем весь GUI в 0.5 относительно центра экрана
-	glPushMatrix();
-	glTranslatef(width / 2.0f, height / 2.0f, 0.0f);
-	glScalef(0.5f, 0.5f, 1.0f);
-	glTranslatef(-width / 2.0f, -height / 2.0f, 0.0f);
+	if (isTop) {
+		// ===== Верхний экран: лого крупно, версия, копирайт, подзаголовок =====
+		TextureId id = minecraft->textures->loadTexture("gui/title.png");
+		const TextureData* data = minecraft->textures->getTemporaryTextureData(id);
 
-	// Масштабируем координаты мыши для hover-эффектов
-	int sxm = (int)((xm - width / 2.0f) * 2.0f + width / 2.0f);
-	int sym = (int)((ym - height / 2.0f) * 2.0f + height / 2.0f);
-	#else
+		if (data) {
+			minecraft->textures->bind(id);
+			const float cx = (float)width / 2.0f;
+			const float cy = (float)height * 0.42f;
+			// Лого занимает ~80% ширины экрана, но не больше его натурального размера
+			const float wh = Mth::Min((float)width * 0.42f, (float)data->w);
+			const float scale = 2.0f * wh / (float)data->w;
+			const float h = scale * (float)data->h;
+			const float top = cy - h / 2.0f;
+
+			Tesselator& t = Tesselator::instance;
+			glColor4f2(1, 1, 1, 1);
+			t.begin();
+			t.vertexUV(cx-wh, top+h, blitOffset, 0, 1);
+			t.vertexUV(cx+wh, top+h, blitOffset, 1, 1);
+			t.vertexUV(cx+wh, top+0, blitOffset, 1, 0);
+			t.vertexUV(cx-wh, top+0, blitOffset, 0, 0);
+			t.draw();
+		}
+
+		// Подзаголовок под лого
+		const char* tagline = "Pocket Edition  -  3DS Port by efimandreev0";
+		int tw = minecraft->font->width(tagline);
+		drawString(font, tagline, (width - tw) / 2, (int)((float)height * 0.42f) + 36, 0xffffdd55);
+
+		// Версия и копирайт
+		drawString(font, version, versionPosX, height - 32, 0xffcccccc);
+		drawString(font, copyright, copyrightPosX, height - 12, 0xffffffff);
+	} else {
+		// ===== Нижний экран: только кнопки =====
+		// Масштабируем кнопки 0.5x относительно центра — как было раньше
+		glPushMatrix();
+		glTranslatef(width / 2.0f, height / 2.0f, 0.0f);
+		glScalef(0.5f, 0.5f, 1.0f);
+		glTranslatef(-width / 2.0f, -height / 2.0f, 0.0f);
+
+		int sxm = (int)((xm - width / 2.0f) * 2.0f + width / 2.0f);
+		int sym = (int)((ym - height / 2.0f) * 2.0f + height / 2.0f);
+
+		Screen::render(sxm, sym, a);
+
+		glPopMatrix();
+	}
+#else
+	renderBackground();
+
 	int sxm = xm;
 	int sym = ym;
-	#endif
 
 	// Title (logo)
 	#if defined(RPI)
@@ -208,16 +274,11 @@ void StartMenuScreen::render( int xm, int ym, float a )
 		blit(0, height - 12, 0, 0, 43, 12, 256, 72+72);
 	#endif
 
-	// Текст тоже уменьшится в 2 раза и станет чётким
 	drawString(font, version, versionPosX, 62, 0xffcccccc);
 	drawString(font, copyright, copyrightPosX, height - 10, 0xffffff);
 
-	// Кнопки рендерятся здесь, уже уменьшенные
 	Screen::render(sxm, sym, a);
-
-	#if defined(__3DS__)
-	glPopMatrix();
-	#endif
+#endif
 }
 
 // Обработка кликов с коррекцией координат

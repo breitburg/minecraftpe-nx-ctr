@@ -205,6 +205,16 @@ int main(int argc, char** argv) {
 
     int frameCounter = 0; // Добавь счетчик перед циклом
 
+    // --- 30 FPS frame cap ---
+    // Лочим кадр на 1/30 секунды. 60 FPS на Old 3DS всё равно недостижимы,
+    // а нестабильные 26-48 хуже стабильных 30: камера дёргается, ускорение
+    // движения непредсказуемо, физика плавает. Если кадр посчитался быстрее
+    // 33.3 мс — спим остаток через svcSleepThread, который не жжёт CPU.
+    // Если медленнее — просто проскакиваем сон.
+    const u64 kTargetFrameNs = 1000000000ULL / 30ULL; // 33,333,333 ns
+    u64 nextFrameTick = svcGetSystemTick();
+    const u64 kSysTicksPerSec = SYSCLOCK_ARM11; // 268,123,480 на 3DS
+
     while (aptMainLoop()) {
         hidScanInput();
 
@@ -223,6 +233,24 @@ int main(int argc, char** argv) {
             printMemoryStats();
         }
         frameCounter++;
+
+        // Считаем дедлайн следующего кадра от ПРОШЛОГО дедлайна, а не от
+        // "сейчас" — так не накапливается дрейф из-за пары быстрых кадров
+        // подряд, и средний FPS точно держится 30. Дедлайн в "system ticks":
+        // ticks = ns * (TicksPerSec / 1e9).
+        const u64 kTargetFrameTicks = (kTargetFrameNs * kSysTicksPerSec) / 1000000000ULL;
+        nextFrameTick += kTargetFrameTicks;
+        u64 now = svcGetSystemTick();
+        if (now < nextFrameTick) {
+            // Осталось до дедлайна — спим. Конвертируем тики обратно в ns.
+            u64 remainingTicks = nextFrameTick - now;
+            s64 remainingNs = (s64)((remainingTicks * 1000000000ULL) / kSysTicksPerSec);
+            if (remainingNs > 0) svcSleepThread(remainingNs);
+        } else {
+            // Опоздали — сбрасываем дедлайн на текущий момент, чтобы не
+            // пытаться "догонять" пачкой быстрых кадров (это даёт рывки).
+            nextFrameTick = now;
+        }
     }
 
     deinitGraphics();

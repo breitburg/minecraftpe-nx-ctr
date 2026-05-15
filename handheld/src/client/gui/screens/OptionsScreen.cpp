@@ -10,6 +10,7 @@
 #include "../components/ImageButton.h"
 #include "../components/OptionsGroup.h"
 #include "../components/TextBox.h"
+#include "../Font.h"
 
 
 OptionsScreen::OptionsScreen()
@@ -114,6 +115,32 @@ void OptionsScreen::setupPositions() {
 }
 
 void OptionsScreen::render( int xm, int ym, float a ) {
+#ifdef __3DS__
+	if (Screen::s_isRenderingTopScreen3ds) {
+		// Верхний экран: земляной фон + крупный заголовок + страница.
+		renderDirtBackground(0);
+
+		Font* f = minecraft->font;
+		const char* title = "Options";
+		int tw = f->width(title);
+		// Лёгкий "тайтл" эффект — двойной шрифт
+		f->drawShadow(title, (width - tw * 2) / 2, height / 2 - 16, 0xffffffff);
+		// Реальный шрифт без масштаба — просто крупный (рисуем дважды чуть смещаясь даёт жирный вид)
+		f->drawShadow(title, (width - tw) / 2 + 1, height / 2 - 4, 0xffffaa00);
+		f->drawShadow(title, (width - tw) / 2,     height / 2 - 4, 0xffffdd55);
+
+		char buf[64];
+		sprintf(buf, "Page %d / %d", currentPage + 1, maxPages);
+		int bw = f->width(buf);
+		f->drawShadow(buf, (width - bw) / 2, height / 2 + 8, 0xffcccccc);
+
+		const char* hint = "Use < / > on touchscreen to switch pages";
+		int hw = f->width(hint);
+		f->drawShadow(hint, (width - hw) / 2, height - 14, 0xffaaaaaa);
+		return;
+	}
+#endif
+
 	renderBackground();
 	int xmm = xm * width / minecraft->width;
 	int ymm = ym * height / minecraft->height - 1;
@@ -121,6 +148,10 @@ void OptionsScreen::render( int xm, int ym, float a ) {
 		optionPane->render(minecraft, xmm, ymm);
 	super::render(xm, ym, a);
 }
+
+#ifdef __3DS__
+bool OptionsScreen::renderOnTopScreen3ds() { return true; }
+#endif
 
 void OptionsScreen::removed()
 {

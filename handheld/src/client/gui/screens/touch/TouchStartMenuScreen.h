@@ -30,6 +30,9 @@ public:
 	void buttonClicked(Button* button);
 	bool handleBackEvent(bool isDown);
 	bool isInGameScreen();
+#ifdef __3DS__
+	bool renderOnTopScreen3ds();
+#endif
 private:
 	void _updateLicense();
 	

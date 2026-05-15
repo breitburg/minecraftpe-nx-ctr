@@ -32,10 +32,10 @@ public:
 		float dx = 0, dy = 0;
 		float dt = getDeltaTime();
 		
-		// Чувствительность для C-Stick (возможно придется увеличить до 300-350, 
-		// так как "пимпочка" на 3DS тугая)
-		const float MaxTurnX = 250.0f; 
-		const float MaxTurnY = 200.0f;
+		// Чувствительность для C-Stick. Поднял т.к. пимпочка тугая
+		// и крутить камеру было невозможно.
+		const float MaxTurnX = 450.0f;
+		const float MaxTurnY = 360.0f;
 		
 		dx = linearTransform( stickX, 0.2f, MaxTurnX ) * dt;
 		dy = linearTransform( stickY, 0.2f, MaxTurnY ) * dt;
@@ -119,8 +119,8 @@ public:
 		_move.onConfigChanged(c);
 		_turnBuild.moveArea = RectangleArea(0,0,0,0);
 		_turnBuild.inventoryArea = _mc->gui.getRectangleArea( _mc->options.isLeftHanded ? 1 : -1 );
-		// Чувствительность тачскрина
-		_turnBuild.setSensitivity(c.options->isJoyTouchArea ? 1.8f : 1.0f);
+		// Чувствительность тачскрина (стилус по нижнему экрану)
+		_turnBuild.setSensitivity(c.options->isJoyTouchArea ? 2.8f : 1.8f);
 		((ITurnInput*)&_turnBuild)->onConfigChanged(c);
 	}
 

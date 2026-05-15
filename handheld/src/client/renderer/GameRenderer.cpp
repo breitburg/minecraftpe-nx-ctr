@@ -303,8 +303,11 @@ void GameRenderer::renderDualScreen3ds(float a) {
 	} else {
 		glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 		setupGuiScreen(true);
-		if (mc->screen != NULL && mc->screen->renderOnTopScreen3ds())
+		if (mc->screen != NULL && mc->screen->renderOnTopScreen3ds()) {
+			Screen::s_isRenderingTopScreen3ds = true;
 			mc->screen->render(xMouse, yMouse, a);
+			Screen::s_isRenderingTopScreen3ds = false;
+		}
 	}
 
 	nova_set_render_target(kBottomRenderTarget);
@@ -314,6 +317,16 @@ void GameRenderer::renderDualScreen3ds(float a) {
 	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 	setupGuiScreen(true);
 
+	// Hotbar (and bottom-screen status) — draw BEFORE an in-game screen so the
+	// screen (chest/crafting/inventory) covers it visually
+	const bool screenHidesHotbar = (mc->screen != NULL && mc->screen->isInGameScreen());
+	const bool drawBottomHud = mc->isLevelGenerated() && !mc->options.hideGui && !screenHidesHotbar;
+
+	// Земляной фон под всё, что рендерится на нижнем экране в игре:
+	// до тач-управления, чтобы кнопки/индикаторы остались видны поверх.
+	if (drawBottomHud)
+		mc->gui.renderBottomDirt(a);
+
 	if (mc->isLevelGenerated()) {
 		if (mc->player && mc->screen == NULL) {
 			if (mc->inputHolder) mc->inputHolder->render(a);
@@ -321,14 +334,15 @@ void GameRenderer::renderDualScreen3ds(float a) {
 		}
 	}
 
+	if (drawBottomHud)
+		mc->gui.renderBottomHotbar(a);
+
 	if (mc->screen != NULL) {
+		Screen::s_isRenderingTopScreen3ds = false;
 		mc->screen->render(xMouse, yMouse, a);
 		if (mc->screen && !mc->screen->isInGameScreen())
 			sleepMs(15);
 	}
-
-	if (mc->isLevelGenerated() && !mc->options.hideGui)
-		mc->gui.renderBottomHotbar(a);
 
 	Gui::ScissorScaleX = Gui::GuiScale;
 	Gui::ScissorScaleY = Gui::GuiScale;

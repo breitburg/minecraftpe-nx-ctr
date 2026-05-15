@@ -45,6 +45,7 @@ public:
 #ifdef __3DS__
 	void renderTopHud(float a);
 	void renderBottomHotbar(float a);
+	void renderBottomDirt(float a);
 #endif
 
 	void renderToolBar( float a, int ySlot, const int screenWidth );

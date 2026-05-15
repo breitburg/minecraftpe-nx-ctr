@@ -1274,10 +1274,9 @@ void Minecraft::setScreen( Screen* screen )
 		int screenHeight = (int)(height * Gui::InvGuiScale); //ssc.getHeight();
 		screen->init(this, screenWidth, screenHeight);
 
-		if (screen->isInGameScreen() && level) {
-			level->saveLevelData();
-            level->saveGame();
-        }
+		// Saving here ran a full level.dat + entity save to the SD card on
+		// every menu/crafting close, causing a hard stutter. Periodic saves
+		// (30s level data, 60s entities) and the save-on-exit cover this.
 
 		//noRender = false;
 	} else {

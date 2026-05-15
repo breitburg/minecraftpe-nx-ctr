@@ -28,8 +28,10 @@ public:
     static const int MAX_VISIBLE_REBUILDS_PER_FRAME = 3;
     static const int MAX_INVISIBLE_REBUILDS_PER_FRAME = 1;
     // Cap on nearby chunk mesh rebuilds per frame. Without this, a burst of
-    // newly loaded/dirtied chunks rebuilds all at once and freezes the frame.
-    static const int MAX_NEAR_REBUILDS_PER_FRAME = 4;
+    // dirtied chunks (e.g. the rolling chunk volume wrapping as the player
+    // walks) rebuilds all at once and freezes the frame. This is the main
+    // knob for the walking stutter: lower = smoother fps but slower pop-in.
+    static const int MAX_NEAR_REBUILDS_PER_FRAME = 2;
     
     float xOld;
     float yOld;

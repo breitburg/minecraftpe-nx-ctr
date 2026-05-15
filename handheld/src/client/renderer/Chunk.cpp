@@ -72,16 +72,6 @@ void Chunk::rebuild()
 	//if (!visible) return;
 	updates++;
 
-    //if (!_layerChunks[0]) {
-    //    for (int i = 0; i < NumLayers; ++i)
-    //        _layerChunks[i] = new int[xs * ys * zs];
-    //}
-    //for (int i = 0; i < NumLayers; ++i)
-    //    _layerChunkCount[i] = 0;
-    
-    //Stopwatch& sw = swRebuild;
-    //sw.start();
-    
 	int x0 = x;
 	int y0 = y;
 	int z0 = z;
@@ -112,7 +102,6 @@ void Chunk::rebuild()
 			for (int z = z0; z < z1; z++) {
 				for (int x = x0; x < x1; x++) {
                     ++cindex;
-                    //if (l > 0 && cindex != _layerChunks[_layerChunkCount[l]])
 					int tileId = region.getTile(x, y, z);
 					if (tileId > 0) {
 						if (!started) {
@@ -128,21 +117,12 @@ void Chunk::rebuild()
 							glTranslatef2(zs / 2.0f, ys / 2.0f, zs / 2.0f);
 #endif
 							t.begin();
-							//printf(".");
-							//printf("Tesselator::offset : %d, %d, %d\n", this->x, this->y, this->z);
 							t.offset((float)(-this->x), (float)(-this->y), (float)(-this->z));
-							//printf("Tesselator::offset : %f, %f, %f\n", this->x, this->y, this->z);
 						}
 
 						Tile* tile = Tile::tiles[tileId];
 						int renderLayer = tile->getRenderLayer();
 
-//                        if (renderLayer == l)
-//                            rendered |= tileRenderer.tesselateInWorld(tile, x, y, z);
-//                        else {
-//                            _layerChunks[_layerChunkCount[renderLayer]++] = cindex;
-//                        }
-                        
 						if (renderLayer > l) {
 							renderNextLayer = true;
                             doRenderLayer[renderLayer] = true;
@@ -177,8 +157,6 @@ void Chunk::rebuild()
 		if (!renderNextLayer) break;
 	}
 
-    //sw.stop();
-    //sw.printEvery(1, "rebuild-");
 	skyLit = LevelChunk::touchedSky;
 	compiled = true;
 	return;

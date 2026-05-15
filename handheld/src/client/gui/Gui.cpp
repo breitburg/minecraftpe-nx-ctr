@@ -75,6 +75,34 @@ void Gui::renderTopHud(float a) {
 void Gui::renderBottomHotbar(float a) {
 	renderInGameHud(a, false, true);
 }
+
+// Земляной фон под хотбар на нижнем экране, как в меню.
+// Тайлится gui/background.png; цвет приглушённый, чтобы предметы хотбара
+// читались сверху.
+void Gui::renderBottomDirt(float a) {
+	(void)a;
+
+	const int screenWidth  = (int)(minecraft->width  * InvGuiScale);
+	const int screenHeight = (int)(minecraft->height * InvGuiScale);
+
+	glDisable2(GL_FOG);
+	glDisable2(GL_ALPHA_TEST);
+	glDisable2(GL_BLEND);
+	glColor4f2(1, 1, 1, 1);
+	minecraft->textures->loadAndBindTexture("gui/background.png");
+
+	Tesselator& t = Tesselator::instance;
+	const float s = 32.0f;
+	t.begin();
+	t.color(0x606060);
+	t.vertexUV(0.0f,                 (float)screenHeight, 0, 0.0f,                 (float)screenHeight / s);
+	t.vertexUV((float)screenWidth,   (float)screenHeight, 0, (float)screenWidth/s, (float)screenHeight / s);
+	t.vertexUV((float)screenWidth,   0.0f,                0, (float)screenWidth/s, 0.0f);
+	t.vertexUV(0.0f,                 0.0f,                0, 0.0f,                 0.0f);
+	t.draw();
+
+	glEnable2(GL_ALPHA_TEST);
+}
 #endif
 
 void Gui::renderInGameHud(float a, bool renderStatus, bool renderHotbar) {

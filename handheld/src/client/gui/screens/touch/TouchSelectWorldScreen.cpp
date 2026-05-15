@@ -3,6 +3,7 @@
 #include "../ProgressScreen.h"
 #include "../DialogDefinitions.h"
 #include "../../components/ImageButton.h" //weird!
+#include "../../Font.h"
 #include "../../../renderer/Textures.h"
 #include "../../../renderer/Tesselator.h"
 #include "../../../../world/level/LevelSettings.h"
@@ -498,11 +499,36 @@ void SelectWorldScreen::tick()
 
 void SelectWorldScreen::render( int xm, int ym, float a )
 {
-	//Performance::watches.get("sws-full").start();
-	//Performance::watches.get("sws-renderbg").start();
+#ifdef __3DS__
+	if (Screen::s_isRenderingTopScreen3ds) {
+		// Верхний экран: земляной фон + название экрана + инфо
+		renderDirtBackground(0);
+
+		Font* f = minecraft->font;
+		const char* title = "Select World";
+		int tw = f->width(title);
+		f->drawShadow(title, (width - tw) / 2 + 1, height / 2 - 18, 0xffffaa00);
+		f->drawShadow(title, (width - tw) / 2,     height / 2 - 18, 0xffffdd55);
+
+		// Под заголовком — кол-во миров.
+		char buf[64];
+		int cnt = (int)worldsList->levels.size();
+		if (cnt > 0) {
+			sprintf(buf, "%d world%s saved", cnt, (cnt == 1 ? "" : "s"));
+		} else {
+			sprintf(buf, "No worlds yet  -  tap + to create one");
+		}
+		int bw = f->width(buf);
+		f->drawShadow(buf, (width - bw) / 2, height / 2 - 2, 0xffcccccc);
+
+		const char* hint = "Pick a world below, or tap + for a new one";
+		int hw = f->width(hint);
+		f->drawShadow(hint, (width - hw) / 2, height - 14, 0xffaaaaaa);
+		return;
+	}
+#endif
+
 	renderBackground();
-	//Performance::watches.get("sws-renderbg").stop();
-	//Performance::watches.get("sws-worlds").start();
 
 	worldsList->setComponentSelected(bWorldView.selected);
 
@@ -513,19 +539,12 @@ void SelectWorldScreen::render( int xm, int ym, float a )
 		_mouseHasBeenUp = !Mouse::getButtonState(MouseAction::ACTION_LEFT);
 	}
 
-	//Performance::watches.get("sws-worlds").stop();
-	//Performance::watches.get("sws-screen").start();
 	Screen::render(xm, ym, a);
-	//Performance::watches.get("sws-screen").stop();
-
-	//minecraft->textures->loadAndBindTexture("gui/selectworld/trash.png");
-
-	//Performance::watches.get("sws-string").start();
-	//Performance::watches.get("sws-string").stop();
-
-	//Performance::watches.get("sws-full").stop();
-	//Performance::watches.printEvery(128);
 }
+
+#ifdef __3DS__
+bool SelectWorldScreen::renderOnTopScreen3ds() { return true; }
+#endif
 
 void SelectWorldScreen::loadLevelSource()
 {

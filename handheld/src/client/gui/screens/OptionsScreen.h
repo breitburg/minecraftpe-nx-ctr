@@ -22,6 +22,9 @@ public:
 	void buttonClicked( Button* button );
 	void render(int xm, int ym, float a);
 	void removed();
+#ifdef __3DS__
+	bool renderOnTopScreen3ds();
+#endif
 
 	virtual void mouseClicked( int x, int y, int buttonNum );
 	virtual void mouseReleased( int x, int y, int buttonNum );

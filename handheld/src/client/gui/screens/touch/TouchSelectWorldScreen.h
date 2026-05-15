@@ -98,6 +98,9 @@ public:
 	virtual void keyPressed(int eventKey);
 
 	bool isInGameScreen();
+#ifdef __3DS__
+	bool renderOnTopScreen3ds();
+#endif
 private:
 	void loadLevelSource();
 	std::string getUniqueLevelName(const std::string& level);

@@ -66,6 +66,9 @@ public:
 	int width;
 	int height;
 	bool passEvents;
+#ifdef __3DS__
+	static bool s_isRenderingTopScreen3ds;
+#endif
 	//GuiParticles* particles;
 protected:
 	Minecraft* minecraft;

@@ -8,6 +8,10 @@
 #include "../../platform/input/Mouse.h"
 #include "../renderer/Textures.h"
 
+#ifdef __3DS__
+bool Screen::s_isRenderingTopScreen3ds = false;
+#endif
+
 Screen::Screen()
 :   passEvents(false),
 	clickedButton(NULL),

@@ -127,13 +127,18 @@ StartMenuScreen::~StartMenuScreen()
 void StartMenuScreen::init()
 {
 	buttons.push_back(&bHost);
+#ifndef __3DS__
+	// LAN-play отключён для 3DS — без сети по локалке игра не нужна
 	buttons.push_back(&bJoin);
+#endif
 	buttons.push_back(&bOptions);
-    
+
     //buttons.push_back(&bTest);
 
 	tabButtons.push_back(&bHost);
+#ifndef __3DS__
 	tabButtons.push_back(&bJoin);
+#endif
 	tabButtons.push_back(&bOptions);
 
 	#ifdef DEMO_MODE
@@ -173,7 +178,6 @@ void StartMenuScreen::setupPositions() {
 #else
 	int yBase = 2 + height / 3;
 #endif
-	float spacing = (width - (3.0f * buttonWidth)) / 4;
 
 	//#ifdef ANDROID
 	bHost.y =	 yBase;
@@ -184,10 +188,20 @@ void StartMenuScreen::setupPositions() {
 	//bTest.x = 0; //width - bTest.w;
 	//bTest.y = height - bTest.h;
 
+#ifdef __3DS__
+	// На 3DS Join скрыт — раскладываем только Host + Options по центру
+	float spacing2 = (width - (2.0f * buttonWidth)) / 3.0f;
+	bHost.x    = 0*buttonWidth + (int)(1*spacing2);
+	bOptions.x = 1*buttonWidth + (int)(2*spacing2);
+	bJoin.x    = -1000; // оффскрин — кнопка не активна и не в списке
+#else
+	float spacing = (width - (3.0f * buttonWidth)) / 4;
+
 	// Center buttons
 	bJoin.x		= 0*buttonWidth + (int)(1*spacing);
 	bHost.x		= 1*buttonWidth + (int)(2*spacing);
 	bOptions.x	= 2*buttonWidth + (int)(3*spacing);
+#endif
 	//bBuy.y = bOptions.y - bBuy.h - 6;
 	//bBuy.x = bOptions.x + bOptions.w - bBuy.w;
 
@@ -242,12 +256,57 @@ void StartMenuScreen::buttonClicked(::Button* button) {
 
 bool StartMenuScreen::isInGameScreen() { return false; }
 
+#ifdef __3DS__
+bool StartMenuScreen::renderOnTopScreen3ds() { return true; }
+#endif
+
 void StartMenuScreen::render( int xm, int ym, float a )
 {
 	renderBackground();
-    
-    glEnable2(GL_BLEND);
 
+	glEnable2(GL_BLEND);
+
+#ifdef __3DS__
+	const bool isTop = Screen::s_isRenderingTopScreen3ds;
+
+	if (isTop) {
+		// ===== Верхний экран: крупное лого + подзаголовок + версия + копирайт =====
+		TextureId id = minecraft->textures->loadTexture("gui/title.png");
+		const TextureData* data = minecraft->textures->getTemporaryTextureData(id);
+
+		if (data) {
+			minecraft->textures->bind(id);
+			const float cx = (float)width / 2.0f;
+			const float cy = (float)height * 0.40f;
+			const float wh = Mth::Min((float)width * 0.45f, (float)data->w);
+			const float scale = 2.0f * wh / (float)data->w;
+			const float h = scale * (float)data->h;
+			const float top = cy - h / 2.0f;
+
+			Tesselator& t = Tesselator::instance;
+			glColor4f2(1, 1, 1, 1);
+			t.begin();
+				t.vertexUV(cx-wh, top+h, blitOffset, 0, 1);
+				t.vertexUV(cx+wh, top+h, blitOffset, 1, 1);
+				t.vertexUV(cx+wh, top+0, blitOffset, 1, 0);
+				t.vertexUV(cx-wh, top+0, blitOffset, 0, 0);
+			t.draw();
+		}
+
+		// Подзаголовок
+		const char* tagline = "Pocket Edition  -  3DS Port by efimandreev0";
+		int tw = minecraft->font->width(tagline);
+		drawString(font, tagline, (width - tw) / 2,
+			(int)((float)height * 0.40f) + 38, 0xffffdd55);
+
+		// Версия и копирайт
+		drawString(font, version, versionPosX, height - 32, 0xffcccccc);
+		drawString(font, copyright, copyrightPosX, height - 12, 0xffffffff);
+	} else {
+		// ===== Нижний экран: только кнопки =====
+		Screen::render(xm, ym, a);
+	}
+#else
 #if defined(RPI)
 	TextureId id = minecraft->textures->loadTexture("gui/pi_title.png");
 #else
@@ -279,7 +338,8 @@ void StartMenuScreen::render( int xm, int ym, float a )
 		//patch->draw(t, 0, 20);
 	}
 	Screen::render(xm, ym, a);
-    glDisable2(GL_BLEND);
+#endif
+	glDisable2(GL_BLEND);
 }
 
 void StartMenuScreen::_updateLicense()
