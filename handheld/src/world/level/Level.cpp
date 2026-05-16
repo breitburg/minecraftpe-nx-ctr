@@ -1913,15 +1913,19 @@ void Level::setSpawnSettings(bool spawnEnemies, bool spawnFriendlies) {
 
 void Level::animateTick(int xt, int yt, int zt) {
     int r = 16;
-    Random animateRandom;
+#ifdef __3DS__
+    const int animateTickAttempts = 32;
+#else
+    const int animateTickAttempts = 100;
+#endif
 
-    for (int i = 0; i < 100; i++) {
+    for (int i = 0; i < animateTickAttempts; i++) {
         int x = xt + random.nextInt(r) - random.nextInt(r);
         int y = yt + random.nextInt(r) - random.nextInt(r);
         int z = zt + random.nextInt(r) - random.nextInt(r);
         int t = getTile(x, y, z);
         if (t > 0) {
-            Tile::tiles[t]->animateTick(this, x, y, z, &animateRandom);
+            Tile::tiles[t]->animateTick(this, x, y, z, &random);
         }
     }
 }

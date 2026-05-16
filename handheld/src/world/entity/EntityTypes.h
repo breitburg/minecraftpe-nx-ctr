@@ -71,7 +71,7 @@ struct ParticleType {
 	};
 };
 
-#define PARTICLETYPE(x) (ParticleType::x,#x)
+#define PARTICLETYPE(x) ParticleType::x
 
 //
 //

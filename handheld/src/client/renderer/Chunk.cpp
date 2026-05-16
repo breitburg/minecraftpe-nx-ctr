@@ -9,6 +9,9 @@
 #include "../../util/Mth.h"
 #include "../../util/FrameProf.h"
 //#include "../../platform/time.h"
+#ifdef __3DS__
+#include <stdint.h>
+#endif
 
 /*static*/ int Chunk::updates = 0;
 //static Stopwatch swRebuild;
@@ -91,6 +94,101 @@ void Chunk::rebuild()
 	Region region(level, x0 - r, y0 - r, z0 - r, x1 + r, y1 + r, z1 + r);
 	TileRenderer tileRenderer(&region);
 
+#ifdef __3DS__
+	// SINGLE-PASS rebuild для 3DS.
+	//
+	// Старая схема делала до 3 проходов по всему чанку (16³=4096 ячеек,
+	// region.getTile + Tile::tiles[] lookup на каждой) — по проходу на
+	// каждый renderLayer (terrain/alpha/water). На чанках с водой+листьями
+	// это ~12K getTile-вызовов на ребилд, и каждый ребилд на Old 3DS
+	// ловил пики до 25ms (см. LevelRenderer.h).
+	//
+	// Новая схема: один проход. Бакетизируем непустые тайлы по renderLayer
+	// в три SOA-массива (positions + tile ptrs). Затем для каждого
+	// присутствующего слоя один проход по его собственному списку — без
+	// перепроверок region.getTile() и без обхода пустых ячеек.
+	//
+	// Память: фикс-массивы static (BSS), 16³ × 3 слоя — но в худшем случае
+	// сумма всех слоёв = 16³, поэтому делим один пул на 4096 элементов.
+	// Хранение: uint16_t packedPos = (lx<<8) | (ly<<4) | lz (xs,ys,zs<=16),
+	// плюс Tile* (4 байта) = 6 байт на тайл × 4096 = 24 КБ static.
+	//
+	// Гарантия: layers строятся в порядке 0..2, как и в старой схеме —
+	// важно для тесселяции (внутри tesselateInWorld есть взаимодействия с
+	// уже выставленным GL-стейтом для текущего слоя).
+	static uint16_t s_packed[NumLayers][4096];
+	static Tile*    s_tilePtr[NumLayers][4096];
+	int             layerCount[NumLayers] = {0, 0, 0};
+
+	for (int yy = y0; yy < y1; yy++) {
+		for (int zz = z0; zz < z1; zz++) {
+			for (int xx = x0; xx < x1; xx++) {
+				int tileId = region.getTile(xx, yy, zz);
+				if (tileId <= 0) continue;
+				Tile* tile = Tile::tiles[tileId];
+				if (tile == NULL) continue;
+				int rl = tile->getRenderLayer();
+				if ((unsigned)rl >= (unsigned)NumLayers) continue;
+				int n = layerCount[rl];
+				if (n >= 4096) continue; // safety; не должно достигаться
+				int lx = xx - x0;
+				int ly = yy - y0;
+				int lz = zz - z0;
+				s_packed[rl][n]  = (uint16_t)((lx << 8) | (ly << 4) | lz);
+				s_tilePtr[rl][n] = tile;
+				layerCount[rl] = n + 1;
+			}
+		}
+	}
+
+	for (int l = 0; l < NumLayers; l++) {
+		int n = layerCount[l];
+		if (n <= 0) continue;
+		bool rendered = false;
+		bool started = false;
+
+		for (int i = 0; i < n; i++) {
+			if (!started) {
+				started = true;
+#ifndef USE_VBO
+				glNewList(lists + l, GL_COMPILE);
+				glPushMatrix2();
+				translateToPos();
+				float ss = 1.000001f;
+				glTranslatef2(-zs / 2.0f, -ys / 2.0f, -zs / 2.0f);
+				glScalef2(ss, ss, ss);
+				glTranslatef2(zs / 2.0f, ys / 2.0f, zs / 2.0f);
+#endif
+				t.begin();
+				t.offset((float)(-this->x), (float)(-this->y), (float)(-this->z));
+			}
+			uint16_t p = s_packed[l][i];
+			int lx = (p >> 8) & 0xF;
+			int ly = (p >> 4) & 0xF;
+			int lz = p & 0xF;
+			Tile* tile = s_tilePtr[l][i];
+			rendered |= tileRenderer.tesselateInWorld(tile, x0 + lx, y0 + ly, z0 + lz);
+		}
+
+		if (started) {
+#ifdef USE_VBO
+			renderChunk[l] = t.end(true, vboBuffers[l]);
+			renderChunk[l].pos.x = (float)this->x;
+			renderChunk[l].pos.y = (float)this->y;
+			renderChunk[l].pos.z = (float)this->z;
+#else
+			t.end(false, -1);
+			glPopMatrix2();
+			glEndList();
+#endif
+			t.offset(0, 0, 0);
+		}
+		if (rendered) {
+			empty[l] = false;
+			_empty = false;
+		}
+	}
+#else
     bool doRenderLayer[NumLayers] = {true, false, false};
 	for (int l = 0; l < NumLayers; l++) {
         if (!doRenderLayer[l]) continue;
@@ -158,6 +256,7 @@ void Chunk::rebuild()
         }
 		if (!renderNextLayer) break;
 	}
+#endif
 
 	skyLit = LevelChunk::touchedSky;
 	compiled = true;

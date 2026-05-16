@@ -22,9 +22,14 @@
 #include "Textures.h"
 #include "../../util/FrameProf.h"
 #include "tileentity/TileEntityRenderDispatcher.h"
+#include "../../world/level/tile/entity/TileEntity.h"
 #include "../particle/BreakingItemParticle.h"
 
 #include "../../client/player/LocalPlayer.h"
+
+#ifdef __3DS__
+#include "../../platform/ctr_caps.h"
+#endif
 
 #ifdef GFX_SMALLER_CHUNKS
 /* static */ const int LevelRenderer::CHUNK_SIZE = 8;
@@ -148,6 +153,13 @@ void LevelRenderer::setLevel( Level* level )
 
 void LevelRenderer::allChanged()
 {
+#ifdef __3DS__
+	// Сброс кеша GPU-стейта в NovaGL: между мирами текстуры могут быть
+	// удалены и пересозданы с тем же ID — кэш «уже привязано» соврёт и
+	// пропустит нужный TexBind → стейл-привязка → возможный crash на draw.
+	nova_invalidate_state_cache();
+#endif
+
 	deleteChunks();
 
 	Tile::leaves->setFancy(mc->options.fancyGraphics);
@@ -313,7 +325,16 @@ int LevelRenderer::render( Mob* player, int layer, float alpha )
 
 	TIMER_PUSH("sortchunks");
 	if (layer == 0) {
-		for (int i = 0; i < 10; i++) {
+#ifdef __3DS__
+		// На 3DS пробег `std::find` по dirtyChunks (потенциально сотни
+		// элементов) × 10 итераций в каждом кадре заметен в профайлере.
+		// Уменьшаем шаг до 2: всё равно это "страховочный" скан, dirty-чанки
+		// в основном попадают через tileChanged()/setDirty().
+		const int kFixSteps = 2;
+#else
+		const int kFixSteps = 10;
+#endif
+		for (int i = 0; i < kFixSteps; i++) {
 			chunkFixOffs = (chunkFixOffs + 1) % chunksLength;
 			Chunk* c = chunks[chunkFixOffs];
 			if (c->isDirty() && std::find(dirtyChunks.begin(), dirtyChunks.end(), c) == dirtyChunks.end()) {
@@ -694,16 +715,77 @@ bool LevelRenderer::updateDirtyChunks( Mob* player, bool force )
 		Stopwatch chunkWatch;
 		chunkWatch.start();
 
+#ifdef __3DS__
+		// Замораживаем ребилды чанков во время движения. Один chunk-rebuild
+		// стоит 10-25мс — два-три ребилда подряд в кадре не лезут в 33мс
+		// бюджет 30 FPS. Стоит игрок — разгребаем очередь по 1 чанку/кадр,
+		// идёт — пропускаем.
+		//
+		// КРИТИЧНЫЙ нюанс: игра идёт на 30 FPS, но тикает на 20 TPS, поэтому
+		// 1/3 кадров приходится между тиками — `player->x` и `player->xo`
+		// не меняются, dx==0 → если детектить «один кадр», freeze отпустит
+		// на каждом 3-м кадре и пройдёт ребилд → статтер. Решение:
+		// фиксируем последнее РЕАЛЬНОЕ изменение x/z и держим состояние
+		// freeze до следующего тика. Между тиками — возвращаем кэш.
+		static float s_lastTickX = 0.0f, s_lastTickZ = 0.0f;
+		static bool  s_lastFreezeState = false;
+		static bool  s_lastFreezeInited = false;
+		const bool ctrFreeze = !force && [&]() -> bool {
+			Entity* p = mc->cameraTargetPlayer;
+			if (!p) return false;
+			if (!s_lastFreezeInited) {
+				s_lastTickX = p->x;
+				s_lastTickZ = p->z;
+				s_lastFreezeInited = true;
+				return false;
+			}
+			if (p->x != s_lastTickX || p->z != s_lastTickZ) {
+				// Произошёл тик — пересчитываем freeze-флаг.
+				float dx = p->x - s_lastTickX;
+				float dz = p->z - s_lastTickZ;
+				s_lastTickX = p->x;
+				s_lastTickZ = p->z;
+				// 0.0025 = (0.05)^2. Walking даёт ~0.1 за тик → 0.01.
+				s_lastFreezeState = (dx * dx + dz * dz) > 0.0025f;
+			}
+			return s_lastFreezeState;
+		}();
+		const int ctrBudget = ctrFreeze ? 0 : MAX_NEAR_REBUILDS_PER_FRAME;
+		// Алиасы для совместимости с остальным кодом ниже.
+		const bool o3dsFreeze = ctrFreeze;
+		const int o3dsBudget = ctrBudget;
+#endif
+
 		int nearDone = 0;
+		int firstBuildDone = 0;
 		if (!nearChunks.empty()) {
 			if (nearChunks.size() > 1) {
 				std::sort(nearChunks.begin(), nearChunks.end(), dirtyChunkSorter);
 			}
 
-			int nearBudget = force ? (int)nearChunks.size() : MAX_NEAR_REBUILDS_PER_FRAME;
+#ifdef __3DS__
+			// Раздельные бюджеты на 3DS:
+			//   * updateBudget  — апдейты уже построенных чанков (compiled=true,
+			//     поменялось окружение/освещение). На движении = 0, чтобы не
+			//     ловить статтер.
+			//   * firstBuildBudget — первое построение чанка (compiled=false).
+			//     Без меша игрок видит пустую дырку в мире — НЕЛЬЗЯ откладывать
+			//     даже на движении. Лимитируем 2/кадр, иначе при пересечении
+			//     границы чанка (resortChunks делает 8+ чанков compiled=false
+			//     одной пачкой) кадр разъедет на 50+мс.
+			int updateBudget = force ? (int)nearChunks.size() : o3dsBudget;
+			int firstBuildBudget = force ? (int)nearChunks.size() : 2;
+#else
+			int updateBudget = force ? (int)nearChunks.size() : MAX_NEAR_REBUILDS_PER_FRAME;
+			int firstBuildBudget = updateBudget;
+#endif
 			for (int i = (int)nearChunks.size() - 1; i >= 0; i--) {
 				Chunk* chunk = nearChunks[i];
-				if (nearDone >= nearBudget) {
+				const bool isFirstBuild = !chunk->isCompiled();
+				const int  myBudget     = isFirstBuild ? firstBuildBudget : updateBudget;
+				const int  myDone       = isFirstBuild ? firstBuildDone   : nearDone;
+
+				if (myDone >= myBudget) {
 					// Defer the rest to later frames so a burst of dirty
 					// chunks does not stall the frame for ~1 second.
 					dirtyChunks.push_back(chunk);
@@ -712,7 +794,8 @@ bool LevelRenderer::updateDirtyChunks( Mob* player, bool force )
 				}
 				chunk->rebuild();
 				chunk->setClean();
-				nearDone++;
+				if (isFirstBuild) firstBuildDone++;
+				else              nearDone++;
 			}
 		}
 
@@ -720,7 +803,12 @@ bool LevelRenderer::updateDirtyChunks( Mob* player, bool force )
 		int secondaryRemoved = 0;
 
 #ifdef __3DS__
-		const bool allowSecondaryRebuilds = force || nearDone == 0;
+		// На 3DS: вторичные (>1024 ед.) ребилды — это далёкие чанки, которые
+		// часто и так не видны. Глушим во время движения и когда уже сделали
+		// какую-то работу по близким чанкам (либо update, либо first-build) —
+		// иначе кадр разъедет.
+		const bool allowSecondaryRebuilds = force ||
+		    (!o3dsFreeze && nearDone == 0 && firstBuildDone == 0);
 #else
 		const bool allowSecondaryRebuilds = true;
 #endif
@@ -924,6 +1012,16 @@ void LevelRenderer::setTilesDirty( int x0, int y0, int z0, int x1, int y1, int z
 
 void LevelRenderer::cull( Culler* culler, float a )
 {
+#ifdef __3DS__
+	// На 3DS frustum-cull всех чанков (xChunks*yChunks*zChunks ~= 128+ на
+	// viewDistance=3) — заметный кусок CPU. Делаем cull через кадр: одна
+	// видимость живёт максимум 2 кадра, для 30 FPS это 66ms задержки появления
+	// нового видимого чанка — незаметно. Работает на ОБЕИХ 3DS.
+	if (cullStep & 1) {
+		cullStep++;
+		return;
+	}
+#endif
 	for (int i = 0; i < chunksLength; i++) {
 		if (!chunks[i]->isEmpty()) {
 			if (!chunks[i]->visible || ((i + cullStep) & 15) == 0) {
@@ -956,6 +1054,15 @@ void LevelRenderer::renderEntities(Vec3 cam, Culler* culler, float a) {
         return;
     }
 
+#ifdef __3DS__
+	// Если в level нет ни одной entity и ни одного tile entity — нечего готовить
+	// (prepare настраивает шрифт/матрицы/текстуры для последующего рендера).
+	// На O3DS экономит несколько мс в кадре когда мобов нет рядом.
+	if (isOld3ds() && level->getAllEntities().empty() && level->tileEntities.empty()) {
+		return;
+	}
+#endif
+
 	TIMER_PUSH("prepare");
     TileEntityRenderDispatcher::getInstance()->prepare(level, textures, mc->font, mc->cameraTargetPlayer, a);
     EntityRenderDispatcher::getInstance()->prepare(level, mc->font, mc->cameraTargetPlayer, &mc->options, a);
@@ -976,9 +1083,39 @@ void LevelRenderer::renderEntities(Vec3 cam, Culler* culler, float a) {
 	const EntityList& entities = level->getAllEntities();
 	totalEntities = entities.size();
 	if (totalEntities > 0) {
+#ifdef __3DS__
+		// Reuse one heap buffer across frames — `new[]` per кадр горяч в
+		// профайлере при ~50 энтити. Растим только при росте.
+		static Entity** s_toRender = NULL;
+		static int      s_toRenderCap = 0;
+		if (totalEntities > s_toRenderCap) {
+			delete[] s_toRender;
+			s_toRenderCap = totalEntities + 16;
+			s_toRender = new Entity*[s_toRenderCap];
+		}
+		Entity** toRender = s_toRender;
+
+		// Old 3DS: жёсткий cutoff по радиусу. Frustum-culler пропускает энтити
+		// на горизонте (фрустум 32m), а каждая мобка стоит на CPU как
+		// прорисовка модели + лимбов + теней. Срезаем дальше 24m^2 = 576.
+		const float entCutoffSqr = isOld3ds() ? (24.0f * 24.0f) : 1e30f;
+		const float camX = (float)cam.x;
+		const float camY = (float)cam.y;
+		const float camZ = (float)cam.z;
+#else
 		Entity** toRender = new Entity*[totalEntities];
+#endif
 		for (int i = 0; i < totalEntities; i++) {
 			Entity* entity = entities[i];
+
+#ifdef __3DS__
+			{
+				float dxE = entity->x - camX;
+				float dyE = entity->y - camY;
+				float dzE = entity->z - camZ;
+				if (dxE * dxE + dyE * dyE + dzE * dzE > entCutoffSqr) continue;
+			}
+#endif
 
 			if (entity->shouldRender(cam) && culler->isVisible(entity->bb))
 			{
@@ -1001,10 +1138,30 @@ void LevelRenderer::renderEntities(Vec3 cam, Culler* culler, float a) {
 			}
 		}
 
+#ifndef __3DS__
 		delete[] toRender;
+#endif
 	}
 
     TIMER_POP_PUSH("tileentities");
+#ifdef __3DS__
+    // Tile entity cutoff на O3DS: рисуем только в пределах 24m (как и обычные
+    // энтити). Печки/сундуки далеко в чанке всё равно почти не видны.
+    if (isOld3ds()) {
+        const float cx = (float)cam.x;
+        const float cy = (float)cam.y;
+        const float cz = (float)cam.z;
+        const float teCutoffSqr = 24.0f * 24.0f;
+        for (unsigned int i = 0; i < level->tileEntities.size(); i++) {
+            TileEntity* te = level->tileEntities[i];
+            float dxT = (float)te->x - cx;
+            float dyT = (float)te->y - cy;
+            float dzT = (float)te->z - cz;
+            if (dxT * dxT + dyT * dyT + dzT * dzT > teCutoffSqr) continue;
+            TileEntityRenderDispatcher::getInstance()->render(te, a);
+        }
+    } else
+#endif
     for (unsigned int i = 0; i < level->tileEntities.size(); i++) {
         TileEntityRenderDispatcher::getInstance()->render(level->tileEntities[i], a);
     }
@@ -1164,7 +1321,6 @@ void LevelRenderer::addParticle(const std::string& name, float x, float y, float
 	//sw.printEvery(50, "add-particle-string");
 }
 
-/*
 void LevelRenderer::addParticle(ParticleType::Id name, float x, float y, float z, float xa, float ya, float za, int data) {
 	float xd = mc->cameraTargetPlayer->x - x;
 	float yd = mc->cameraTargetPlayer->y - y;
@@ -1187,34 +1343,8 @@ void LevelRenderer::addParticle(ParticleType::Id name, float x, float y, float z
 	else if (name == ParticleType::largesmoke)	mc->particleEngine->add( new SmokeParticle(level, x, y, z, xa, ya, za, 2.5f) );
 	else if (name == ParticleType::reddust)		mc->particleEngine->add( new RedDustParticle(level, x, y, z, xa, ya, za) );
 	else if (name == ParticleType::iconcrack)	mc->particleEngine->add( new BreakingItemParticle(level, x, y, z, xa, ya, za, Item::items[data]) );
-
-	//switch (name) {
-	//	case ParticleType::bubble:		p = new BubbleParticle(level, x, y, z, xa, ya, za); break;
-	//	case ParticleType::crit:		p = new CritParticle2(level, x, y, z, xa, ya, za); break;
-	//	case ParticleType::smoke:		p = new SmokeParticle(level, x, y, z, xa, ya, za); break;
-	//	//case ParticleType::note: p = new NoteParticle(level, x, y, z, xa, ya, za); break;
-	//	case ParticleType::explode:		p = new ExplodeParticle(level, x, y, z, xa, ya, za); break;
-	//	case ParticleType::flame:		p = new FlameParticle(level, x, y, z, xa, ya, za); break;
-	//	case ParticleType::lava:		p = new LavaParticle(level, x, y, z); break;
-	//	//case ParticleType::splash: p = new SplashParticle(level, x, y, z, xa, ya, za); break;
-	//	case ParticleType::largesmoke:	p = new SmokeParticle(level, x, y, z, xa, ya, za, 2.5f); break;
-	//	case ParticleType::reddust:		p = new RedDustParticle(level, x, y, z, xa, ya, za); break;
-	//	case ParticleType::iconcrack:	p = new BreakingItemParticle(level, x, y, z, xa, ya, za, Item::items[data]); break;
-	//	//case ParticleType::snowballpoof: p = new BreakingItemParticle(level, x, y, z, Item::snowBall); break;
-	//	//case ParticleType::slime: p = new BreakingItemParticle(level, x, y, z, Item::slimeBall); break;
-	//	//case ParticleType::heart: p = new HeartParticle(level, x, y, z, xa, ya, za); break;
-	//	default:
-	//		LOGW("Couldn't find particle of type: %d\n", name);
-	//		break;
-	//}
-	//if (p) {
-	//	mc->particleEngine->add(p);
-	//}
-
-	//sw.stop();
-	//sw.printEvery(50, "add-particle-enum");
+	else if (name == ParticleType::snowballpoof) mc->particleEngine->add(new BreakingItemParticle(level, x, y, z, Item::snowBall));
 }
-*/
 
 void LevelRenderer::renderHitSelect( Player* player, const HitResult& h, int mode, /*ItemInstance*/void* inventoryItem, float a )
 {

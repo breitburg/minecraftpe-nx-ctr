@@ -59,9 +59,10 @@ private:
     bool canBurn();
 	
 public:
-    int litTime;
+	int litTime;
     int litDuration;
     int tickCount;
+	int tickSkip;
     ItemInstance items[NumItems];
 
 	static const int SLOT_INGREDIENT = 0;

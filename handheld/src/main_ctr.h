@@ -26,6 +26,7 @@
 #include "platform/input/Multitouch.h"
 #include "platform/input/Keyboard.h"
 #include "platform/input/Controller.h"
+#include "platform/ctr_caps.h"
 #include "util/FrameProf.h"
 
 static bool _app_inited = false;
@@ -69,6 +70,8 @@ void networkExit() {
 
 static void initGraphics(App* app, AppContext* state) {
     osSetSpeedupEnable(true);
+    ctr_caps_init();
+    printf("[CAPS] Console: %s\n", isOld3ds() ? "Old 3DS (aggressive cuts ON)" : "New 3DS");
 
     gfxInitDefault();
     nova_init();
@@ -193,15 +196,12 @@ void handleController() {
     if(changed & KEY_DDOWN) Keyboard::feed(Keyboard::KEY_LSHIFT, (kHeld & KEY_DDOWN) ? 1 : 0);
 
     if (ctrXybaInGame()) {
-        // Схема XYBA = камера: грани крутят вид. Кормим look-стик (2), тот же
-        // путь, что C-Stick — N3dsTurnBuild читает его в getTurnDelta().
-        // Y — вверх, A — вниз, X — влево, B — вправо.
         float lx = 0.0f, ly = 0.0f;
-        if (kHeld & KEY_B) lx += 1.0f;
-        if (kHeld & KEY_X) lx -= 1.0f;
-        if (kHeld & KEY_Y) ly += 1.0f;
-        if (kHeld & KEY_A) ly -= 1.0f;
-        const float kLookSpeed = 0.8f; // подбирается на вкус
+        if (kHeld & KEY_Y) lx += 1.0f;
+        if (kHeld & KEY_A) lx -= 1.0f;
+        if (kHeld & KEY_B) ly += 1.0f;
+        if (kHeld & KEY_X) ly -= 1.0f;
+        const float kLookSpeed = 0.7f;
         Controller::feed(2, Controller::STATE_TOUCH, lx * kLookSpeed, ly * kLookSpeed);
     } else {
         if(changed & KEY_A) Keyboard::feed(Keyboard::KEY_SPACE, (kHeld & KEY_A) ? 1 : 0);
@@ -225,13 +225,13 @@ int main(int argc, char** argv) {
     mkdir("sdmc:/3ds/minecraftpe", 0777);
     mkdir("sdmc:/3ds/minecraftpe/cache", 0777);
 
-    //FILE* log_file = fopen("sdmc:/3ds/minecraftpe/debug_log.txt", "w");
-    //if (log_file) {
-    //    static char logBuffer[16 * 1024];
-    //    setvbuf(log_file, logBuffer, _IOFBF, sizeof(logBuffer));
-    //    dup2(fileno(log_file), STDOUT_FILENO);
-    //    dup2(fileno(log_file), STDERR_FILENO);
-    //}
+    FILE* log_file = fopen("sdmc:/3ds/minecraftpe/debug_log.txt", "w");
+    if (log_file) {
+        static char logBuffer[16 * 1024];
+        setvbuf(log_file, logBuffer, _IOFBF, sizeof(logBuffer));
+        dup2(fileno(log_file), STDOUT_FILENO);
+        dup2(fileno(log_file), STDERR_FILENO);
+    }
 
     networkInit();
     irrstInit();
@@ -260,7 +260,7 @@ int main(int argc, char** argv) {
     const u64 kSysTicksPerSec = SYSCLOCK_ARM11; // 268,123,480 на 3DS
 
     while (aptMainLoop()) {
-        //FrameProf::beginFrame();
+        FrameProf::beginFrame();
 
         {
             FrameProf::Scoped _s_input("00.input");
@@ -306,7 +306,7 @@ int main(int argc, char** argv) {
             nextFrameTick = now;
         }
 
-        //FrameProf::endFrame();
+        FrameProf::endFrame();
     }
 
     deinitGraphics();
@@ -315,7 +315,7 @@ int main(int argc, char** argv) {
     networkExit();
     romfsExit();
 
-    //if (log_file) fclose(log_file);
+    if (log_file) fclose(log_file);
 
     return 0;
 }

@@ -24,6 +24,10 @@ public:
 	void setDirty();
 	void setClean();
 	bool isDirty();
+	// true когда чанк уже хотя бы раз построил свой меш (rebuild завершился).
+	// Используется LevelRenderer'ом, чтобы во время движения приоритезировать
+	// «первое построение» (без меша игрок видит пустую дырку) над апдейтами.
+	bool isCompiled() const { return compiled; }
 	void reset();
 
     float distanceToSqr(const Entity* player) const;

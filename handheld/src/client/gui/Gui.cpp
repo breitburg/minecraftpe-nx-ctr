@@ -26,6 +26,10 @@
 #include <climits>
 #include <cstdio>
 
+#ifdef __3DS__
+#include "../../platform/ctr_caps.h"
+#endif
+
 float Gui::InvGuiScale = 1.0f / 3.0f;
 float Gui::GuiScale = 1.0f / Gui::InvGuiScale;
 float Gui::ScissorScaleX = Gui::GuiScale;
@@ -436,18 +440,33 @@ void Gui::renderWorldMinimap(float a) {
 		int textY = infoY0 + 3;
 		const int lineH = 8;
 
+#ifdef __3DS__
+		// На O3DS отказываемся от тени у координат — экономит ровно половину
+		// draw call'ов на текст HUD. Цвет компенсируем: вместо белого с
+		// чёрной тенью используем жёлтый (контраст к dirt-фону bottom-screen).
+		const bool useShadow = !isOld3ds();
+		const int  coordColor = isOld3ds() ? 0xffffe060 : 0xffffffff;
+#else
+		const bool useShadow = true;
+		const int  coordColor = 0xffffffff;
+#endif
+
 		snprintf(buf, sizeof(buf), "X:%d", playerBlockX);
-		f->drawShadow(std::string(buf), textX, textY, 0xffffffff);
+		if (useShadow) f->drawShadow(std::string(buf), textX, textY, coordColor);
+		else           f->draw(std::string(buf), textX, textY, coordColor);
 		textY += lineH;
 		snprintf(buf, sizeof(buf), "Y:%d", playerBlockY);
-		f->drawShadow(std::string(buf), textX, textY, 0xffffffff);
+		if (useShadow) f->drawShadow(std::string(buf), textX, textY, coordColor);
+		else           f->draw(std::string(buf), textX, textY, coordColor);
 		textY += lineH;
 		snprintf(buf, sizeof(buf), "Z:%d", playerBlockZ);
-		f->drawShadow(std::string(buf), textX, textY, 0xffffffff);
+		if (useShadow) f->drawShadow(std::string(buf), textX, textY, coordColor);
+		else           f->draw(std::string(buf), textX, textY, coordColor);
 		textY += lineH;
 		if (textY + lineH <= infoY1) {
 			snprintf(buf, sizeof(buf), "C:%d,%d", playerChunkX, playerChunkZ);
-			f->drawShadow(std::string(buf), textX, textY, 0xffaaccff);
+			if (useShadow) f->drawShadow(std::string(buf), textX, textY, 0xffaaccff);
+			else           f->draw(std::string(buf), textX, textY, 0xffaaccff);
 		}
 	}
 }

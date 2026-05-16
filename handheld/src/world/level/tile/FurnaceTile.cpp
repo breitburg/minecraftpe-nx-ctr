@@ -6,11 +6,23 @@
 #include "../../entity/item/ItemEntity.h"
 #include "../../entity/player/Player.h"
 #include "../../item/ItemInstance.h"
+#include "../../entity/EntityTypes.h"
 #include "../../../util/Mth.h"
 #include "../LevelSource.h"
 #include "../Level.h"
 
 bool FurnaceTile::noDrop = false;
+
+static void spawnFurnaceParticle(Level* level, Random* random, float x, float y, float z)
+{
+#ifdef __3DS__
+	ParticleType::Id particle = random->nextBoolean() ? ParticleType::smoke : ParticleType::flame;
+	level->addParticle(particle, x, y, z, 0, 0, 0);
+#else
+	level->addParticle(PARTICLETYPE(smoke), x, y, z, 0, 0, 0);
+	level->addParticle(PARTICLETYPE(flame), x, y, z, 0, 0, 0);
+#endif
+}
 
 FurnaceTile::FurnaceTile( int id, bool lit )
 :   super(id, Material::stone),
@@ -53,6 +65,9 @@ int FurnaceTile::getTexture( int face )
 void FurnaceTile::animateTick( Level* level, int xt, int yt, int zt, Random* random )
 {
 	if (!lit) return;
+#ifdef __3DS__
+	if (random->nextInt(4) != 0) return;
+#endif
 
 	int dir = level->getData(xt, yt, zt);
 
@@ -63,17 +78,13 @@ void FurnaceTile::animateTick( Level* level, int xt, int yt, int zt, Random* ran
 	float ss = random->nextFloat() * 0.6f - 0.3f;
 
 	if (dir == 4) {
-		level->addParticle(PARTICLETYPE(smoke), x - r, y, z + ss, 0, 0, 0);
-		level->addParticle(PARTICLETYPE(flame), x - r, y, z + ss, 0, 0, 0);
+		spawnFurnaceParticle(level, random, x - r, y, z + ss);
 	} else if (dir == 5) {
-		level->addParticle(PARTICLETYPE(smoke), x + r, y, z + ss, 0, 0, 0);
-		level->addParticle(PARTICLETYPE(flame), x + r, y, z + ss, 0, 0, 0);
+		spawnFurnaceParticle(level, random, x + r, y, z + ss);
 	} else if (dir == 2) {
-		level->addParticle(PARTICLETYPE(smoke), x + ss, y, z - r, 0, 0, 0);
-		level->addParticle(PARTICLETYPE(flame), x + ss, y, z - r, 0, 0, 0);
+		spawnFurnaceParticle(level, random, x + ss, y, z - r);
 	} else if (dir == 3) {
-		level->addParticle(PARTICLETYPE(smoke), x + ss, y, z + r, 0, 0, 0);
-		level->addParticle(PARTICLETYPE(flame), x + ss, y, z + r, 0, 0, 0);
+		spawnFurnaceParticle(level, random, x + ss, y, z + r);
 	}
 }
 
@@ -99,8 +110,6 @@ void FurnaceTile::setLit( bool lit, Level* level, int x, int y, int z )
 	noDrop = false;
 
 	level->setData(x, y, z, data);
-
-	LOGI("lit? %d @ %d, %d, %d\n", lit, x, y, z);
 
 	if (te != NULL) {
 		te->clearRemoved();

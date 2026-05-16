@@ -16,6 +16,7 @@ FurnaceTileEntity::FurnaceTileEntity()
 	litTime(0),
 	litDuration(0),
 	tickCount(0),
+	tickSkip(0),
 	finished(false),
 	_canBeFinished(false)
 {
@@ -136,16 +137,28 @@ void FurnaceTileEntity::tick()
 {
 	//LOGI("lit|time, tick, dur: %d, %d, %d\n", litTime, tickCount, litDuration);
 
+#ifdef __3DS__
+	static const int furnaceTickStep = 4;
+	if (++tickSkip < furnaceTickStep)
+		return;
+	const int elapsedTicks = tickSkip;
+	tickSkip = 0;
+#else
+	const int elapsedTicks = 1;
+#endif
+
 	bool wasLit = litTime > 0;
 	bool changed = false;
 	if (litTime > 0) {
-		--litTime;
+		litTime -= elapsedTicks;
+		if (litTime < 0) litTime = 0;
 	}
 
 	//LOGI("Ticking FurnaceTileEntity: %d\n", litTime);
 
 	if (!level->isClientSide) {
-		if (litTime == 0 && canBurn()) {
+		bool canSmelt = canBurn();
+		if (litTime == 0 && canSmelt) {
 			litDuration = litTime = getBurnDuration(items[SLOT_FUEL]);
 			if (litTime > 0) {
 				changed = true;
@@ -155,9 +168,10 @@ void FurnaceTileEntity::tick()
 			}
 		}
 
-		if (isLit() && canBurn()) {
-			if (++tickCount == BURN_INTERVAL) {
-				tickCount = 0;
+		if (isLit() && canSmelt) {
+			tickCount += elapsedTicks;
+			if (tickCount >= BURN_INTERVAL) {
+				tickCount -= BURN_INTERVAL;
 				burn();
 				changed = true;
 			}
@@ -228,7 +242,7 @@ int FurnaceTileEntity::getBurnDuration(const ItemInstance& itemInstance) {
 	if (itemInstance.isNull()) return 0;
 	int id = itemInstance.getItem()->id;
 
-	if (id < 256 && Tile::tiles[id]->material == Material::wood)
+	if (id < 256 && Tile::tiles[id] && Tile::tiles[id]->material == Material::wood)
 		return BURN_INTERVAL * 3 / 2;
 
 	if (id == Item::stick->id)  return BURN_INTERVAL / 2;

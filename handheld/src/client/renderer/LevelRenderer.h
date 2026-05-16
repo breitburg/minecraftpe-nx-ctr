@@ -69,7 +69,7 @@ public:
 	void cull(Culler* culler, float a);
     void skyColorChanged();
 
-	//void addParticle(ParticleType::Id name, float x, float y, float z, float xa, float ya, float za, int data);
+	void addParticle(ParticleType::Id name, float x, float y, float z, float xa, float ya, float za, int data);
 	void addParticle(const std::string& name, float x, float y, float z, float xa, float ya, float za, int data);
 	void playSound(const std::string& name, float x, float y, float z, float volume, float pitch);
 	void takePicture(TripodCamera* cam, Entity* entity);

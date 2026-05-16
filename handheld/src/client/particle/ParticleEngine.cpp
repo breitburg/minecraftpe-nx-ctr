@@ -5,6 +5,10 @@
 #include "../../world/level/Level.h"
 #include "../../NinecraftApp.h"
 
+#ifdef __3DS__
+#include "../../platform/ctr_caps.h"
+#endif
+
 ParticleEngine::ParticleEngine(Level* level, Textures* textures)
 :	level(level),
 	textures(textures)
@@ -17,8 +21,25 @@ ParticleEngine::~ParticleEngine() {
 }
 
 void ParticleEngine::add(Particle* p) {
+#ifdef __3DS__
+    // Old 3DS: частицы выключены полностью (выбор пользователя — выгода
+    // в кадрах). На N3DS оставляем cap=64/текстура.
+    if (isOld3ds()) {
+        delete p;
+        return;
+    }
     int t = p->getParticleTexture();
-    particles[t].push_back(p);
+    ParticleList& list = particles[t];
+    static const unsigned int MAX_PARTICLES_PER_TEXTURE = 64;
+    if (list.size() >= MAX_PARTICLES_PER_TEXTURE) {
+        delete p;
+        return;
+    }
+#else
+    int t = p->getParticleTexture();
+    ParticleList& list = particles[t];
+#endif
+    list.push_back(p);
 }
 
 void ParticleEngine::tick() {
@@ -29,9 +50,11 @@ void ParticleEngine::tick() {
             Particle* p = list[i];
             p->tick();
             if (p->removed) {
-                list.erase(list.begin() + (i--));
-                --size;
                 delete p;
+                --size;
+                if (i != size) list[i] = list[size];
+                list.pop_back();
+                --i;
             }
         }
     }
@@ -98,6 +121,11 @@ void ParticleEngine::setLevel(Level* level) {
 }
 
 void ParticleEngine::destroy(int x, int y, int z) {
+#ifdef __3DS__
+    // На O3DS все add() в add() всё равно станут delete — не делаем 18 new+
+    // tesselateBlock + delete впустую.
+    if (isOld3ds()) return;
+#endif
     int tid = level->getTile(x, y, z);
     if (tid == 0) return;
     int data = level->getData(x, y, z);
@@ -119,6 +147,9 @@ void ParticleEngine::destroy(int x, int y, int z) {
 }
 
 void ParticleEngine::crack(int x, int y, int z, int face) {
+#ifdef __3DS__
+    if (isOld3ds()) return;
+#endif
     int tid = level->getTile(x, y, z);
     if (tid == 0) return;
     int data = level->getData(x, y, z);
