@@ -207,25 +207,6 @@ static unsigned int minimap_argb_to_abgr(unsigned int argb) {
 		| ((argb & 0x000000ff) << 16);
 }
 
-static void minimap_rotate_point(float x, float y, float cx, float cy, float c, float s, float& outX, float& outY) {
-	const float dx = x - cx;
-	const float dy = y - cy;
-	outX = cx + dx * c - dy * s;
-	outY = cy + dx * s + dy * c;
-}
-
-static void minimap_vertex_rotated(Tesselator& t, float x, float y, float cx, float cy, float c, float s) {
-	float rx, ry;
-	minimap_rotate_point(x, y, cx, cy, c, s, rx, ry);
-	t.vertex(rx, ry, 0);
-}
-
-static void minimap_vertex_uv_rotated(Tesselator& t, float x, float y, float cx, float cy, float c, float s, float u, float v) {
-	float rx, ry;
-	minimap_rotate_point(x, y, cx, cy, c, s, rx, ry);
-	t.vertexUV(rx, ry, 0, u, v);
-}
-
 void Gui::buildWorldMinimap() {
 	if (!minecraft->level || !minecraft->player) {
 		_minimapReady = false;
@@ -361,27 +342,16 @@ void Gui::renderWorldMinimap(float a) {
 	const float pix = (float)ix0 + pxF;
 	const float piy = (float)iy0 + pzF;
 
-	const float rot = minecraft->player->yRot / 180.0f * Mth::PI;
-	const float dx = -Mth::sin(rot);
-	const float dz =  Mth::cos(rot);
-	const float mapRot = -Mth::PI * 0.5f - Mth::atan2(dz, dx);
-	const float mapC = Mth::cos(mapRot);
-	const float mapS = Mth::sin(mapRot);
-
-	IntRectangle mapClip(ix0, iy0, mapInner, mapInner);
-	glEnable2(GL_SCISSOR_TEST);
-	setScissorRect(mapClip);
-
 	if (_minimapReady && _minimapTexture) {
 		const float uv = (float)kMinimapInnerSize / (float)kMinimapTextureSize;
 		glEnable2(GL_TEXTURE_2D);
 		glColor4f2(1, 1, 1, 1);
 		glBindTexture2(GL_TEXTURE_2D, (GLuint)_minimapTexture);
 		t.begin();
-		minimap_vertex_uv_rotated(t, (float)ix0,              (float)(iy0 + mapInner), pix, piy, mapC, mapS, 0.0f, uv);
-		minimap_vertex_uv_rotated(t, (float)(ix0 + mapInner), (float)(iy0 + mapInner), pix, piy, mapC, mapS, uv,   uv);
-		minimap_vertex_uv_rotated(t, (float)(ix0 + mapInner), (float)iy0,              pix, piy, mapC, mapS, uv,   0.0f);
-		minimap_vertex_uv_rotated(t, (float)ix0,              (float)iy0,              pix, piy, mapC, mapS, 0.0f, 0.0f);
+		t.vertexUV((float)ix0,              (float)(iy0 + mapInner), 0, 0.0f, uv);
+		t.vertexUV((float)(ix0 + mapInner), (float)(iy0 + mapInner), 0, uv,   uv);
+		t.vertexUV((float)(ix0 + mapInner), (float)iy0,              0, uv,   0.0f);
+		t.vertexUV((float)ix0,              (float)iy0,              0, 0.0f, 0.0f);
 		t.draw();
 		glDisable2(GL_TEXTURE_2D);
 	} else {
@@ -399,42 +369,33 @@ void Gui::renderWorldMinimap(float a) {
 	for (int grid = 16; grid <= 32; grid += 16) {
 		const float gx = (float)(ix0 + grid);
 		const float gy = (float)(iy0 + grid);
-		minimap_vertex_rotated(t, gx, (float)(iy0 + mapInner), pix, piy, mapC, mapS);
-		minimap_vertex_rotated(t, gx + 1.0f, (float)(iy0 + mapInner), pix, piy, mapC, mapS);
-		minimap_vertex_rotated(t, gx + 1.0f, (float)iy0, pix, piy, mapC, mapS);
-		minimap_vertex_rotated(t, gx, (float)iy0, pix, piy, mapC, mapS);
-		minimap_vertex_rotated(t, (float)ix0, gy + 1.0f, pix, piy, mapC, mapS);
-		minimap_vertex_rotated(t, (float)(ix0 + mapInner), gy + 1.0f, pix, piy, mapC, mapS);
-		minimap_vertex_rotated(t, (float)(ix0 + mapInner), gy, pix, piy, mapC, mapS);
-		minimap_vertex_rotated(t, (float)ix0, gy, pix, piy, mapC, mapS);
+		t.vertex(gx,        (float)(iy0 + mapInner), 0);
+		t.vertex(gx + 1.0f, (float)(iy0 + mapInner), 0);
+		t.vertex(gx + 1.0f, (float)iy0,              0);
+		t.vertex(gx,        (float)iy0,              0);
+		t.vertex((float)ix0,              gy + 1.0f, 0);
+		t.vertex((float)(ix0 + mapInner), gy + 1.0f, 0);
+		t.vertex((float)(ix0 + mapInner), gy,        0);
+		t.vertex((float)ix0,              gy,        0);
 	}
 	t.draw();
 
+	// Маркер игрока — простая зелёная точка с тёмной обводкой для контраста.
 	t.begin();
 	t.colorABGR(0xff000000);
-	t.vertex(pix - 1.0f, piy + 7.0f, 0);
-	t.vertex(pix + 2.0f, piy + 7.0f, 0);
-	t.vertex(pix + 2.0f, piy - 7.0f, 0);
-	t.vertex(pix - 1.0f, piy - 7.0f, 0);
-	t.vertex(pix - 7.0f, piy + 2.0f, 0);
-	t.vertex(pix + 7.0f, piy + 2.0f, 0);
-	t.vertex(pix + 7.0f, piy - 1.0f, 0);
-	t.vertex(pix - 7.0f, piy - 1.0f, 0);
+	t.vertex(pix - 3.0f, piy + 4.0f, 0);
+	t.vertex(pix + 4.0f, piy + 4.0f, 0);
+	t.vertex(pix + 4.0f, piy - 3.0f, 0);
+	t.vertex(pix - 3.0f, piy - 3.0f, 0);
 	t.draw();
 
 	t.begin();
-	t.colorABGR(0xffffffff);
-	t.vertex(pix, piy + 6.0f, 0);
-	t.vertex(pix + 1.0f, piy + 6.0f, 0);
-	t.vertex(pix + 1.0f, piy - 6.0f, 0);
-	t.vertex(pix, piy - 6.0f, 0);
-	t.vertex(pix - 6.0f, piy + 1.0f, 0);
-	t.vertex(pix + 6.0f, piy + 1.0f, 0);
-	t.vertex(pix + 6.0f, piy, 0);
-	t.vertex(pix - 6.0f, piy, 0);
+	t.colorABGR(0xff30d030);
+	t.vertex(pix - 2.0f, piy + 3.0f, 0);
+	t.vertex(pix + 3.0f, piy + 3.0f, 0);
+	t.vertex(pix + 3.0f, piy - 2.0f, 0);
+	t.vertex(pix - 2.0f, piy - 2.0f, 0);
 	t.draw();
-
-	glDisable2(GL_SCISSOR_TEST);
 
 	int infoY0 = hasCoordPanel ? coordY0 : y0 + 2;
 	int infoY1 = hasCoordPanel ? coordY1 : y0 + 29;
@@ -458,6 +419,11 @@ void Gui::renderWorldMinimap(float a) {
 	// Right-side rail: readable coordinates above the chunk minimap.
 	glEnable2(GL_TEXTURE_2D);
 	glEnable2(GL_ALPHA_TEST);
+
+	// Мини-карта биндила свою GL-текстуру напрямую, в обход Textures —
+	// кэш менеджера протух. Сбрасываем его, иначе Font::draw() решит, что
+	// текстура шрифта уже привязана, и текст отрендерится кусками карты.
+	minecraft->textures->resetBoundTexture();
 
 	Font* f = minecraft->font;
 	if (f && infoY1 - infoY0 >= 20) {
@@ -644,6 +610,34 @@ void Gui::renderInGameHud(float a, bool renderStatus, bool renderHotbar) {
     // L: 6
     // F: 3
 	int ySlot = getHotbarYSlot(screenHeight);
+
+	// Прицел в центре экрана — туда, куда смотрит игрок. Рисуем только на
+	// основном экране (renderStatus); на нижнем хотбаре прицел не нужен.
+	// Инвертирующий блендинг (ONE_MINUS_DST_COLOR) делает крест видимым на
+	// любом фоне — и на небе, и на блоках.
+	if (renderStatus) {
+		Tesselator& tc = Tesselator::instance;
+		const float cx = screenWidth  * 0.5f;
+		const float cy = screenHeight * 0.5f;
+		glDisable2(GL_TEXTURE_2D);
+		glDisable2(GL_ALPHA_TEST);
+		glEnable2(GL_BLEND);
+		glBlendFunc2(GL_ONE_MINUS_DST_COLOR, GL_ONE_MINUS_SRC_COLOR);
+		tc.begin();
+		tc.colorABGR(0xffffffff);
+		tc.vertex(cx - 5.0f, cy + 1.0f, 0);
+		tc.vertex(cx + 5.0f, cy + 1.0f, 0);
+		tc.vertex(cx + 5.0f, cy,        0);
+		tc.vertex(cx - 5.0f, cy,        0);
+		tc.vertex(cx,        cy + 5.0f, 0);
+		tc.vertex(cx + 1.0f, cy + 5.0f, 0);
+		tc.vertex(cx + 1.0f, cy - 5.0f, 0);
+		tc.vertex(cx,        cy - 5.0f, 0);
+		tc.draw();
+		glBlendFunc2(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		glEnable2(GL_TEXTURE_2D);
+		glEnable2(GL_ALPHA_TEST);
+	}
 
 	if (renderStatus) {
 		renderProgressIndicator(isTouchInterface, screenWidth, screenHeight, a);

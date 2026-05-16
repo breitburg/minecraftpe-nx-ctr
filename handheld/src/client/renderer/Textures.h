@@ -38,6 +38,12 @@ public:
             LOGI("invalidId!\n");
         }
 	}
+	// Invalidate the cached binding. Call this after binding a texture
+	// directly via glBindTexture (bypassing this manager) so the next
+	// loadAndBindTexture()/bind() actually re-issues the GL call instead
+	// of trusting a now-stale cache.
+	__inline void resetBoundTexture() { lastBoundTexture = Textures::InvalidId; }
+
 	TextureId loadTexture(const std::string& resourceName, bool inTextureFolder = true);
 	TextureId loadAndBindTexture(const std::string& resourceName);
 
