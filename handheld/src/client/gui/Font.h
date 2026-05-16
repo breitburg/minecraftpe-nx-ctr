@@ -27,9 +27,19 @@ public:
 	void drawShadow(const std::string& str, float x, float y, int color);
 	void drawShadow(const char* str, float x, float y, int color);
 	void drawWordWrap(const std::string& str, float x, float y, float w, int col);
+	// Тот же word-wrap, но обрезает текст по высоте `maxY` (последняя видимая
+	// строка получает многоточие, если ниже неё ещё есть содержимое). Нужно
+	// чтобы описания предметов в крафте/печке не вылезали за рамки своего
+	// контейнера.
+	void drawWordWrapClipped(const std::string& str, float x, float y, float w, float maxY, int col);
 
 	int width(const std::string& str);
 	int height(const std::string& str);
+
+	// Возвращает строку, обрезанную до `maxWidth` пикселей с добавлением "..."
+	// если не помещается. Если помещается целиком — возвращает её как есть.
+	// Используется на узких кнопках/тулбарах, чтобы текст не вылезал за рамки.
+	std::string clipToWidth(const std::string& str, int maxWidth);
 
 	static std::string sanitize(const std::string& str);
 private:

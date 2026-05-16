@@ -110,8 +110,6 @@ void ItemPane::renderBatch( std::vector<GridItem>& items, float alpha )
 	Tesselator& t = Tesselator::instance;
 
 #ifdef __3DS__
-	glDisable2(GL_SCISSOR_TEST);
-
 	const float rowH = (float)itemBbox.h;
 	const float iconX = (float)bbox.x + 3.0f;
 	const float textX = (float)bbox.x + 23.0f;
@@ -154,6 +152,7 @@ void ItemPane::renderBatch( std::vector<GridItem>& items, float alpha )
 	fillGradient((float)bbox.x, (float)(bbox.y + bbox.h - 12), (float)(bbox.x + bbox.w), (float)(bbox.y + bbox.h), 0x00000000, 0xaa000000);
 
 	drawScrollBar(vScroll);
+	glDisable2(GL_SCISSOR_TEST);
 	return;
 #endif
 

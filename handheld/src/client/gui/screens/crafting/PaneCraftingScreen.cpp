@@ -377,10 +377,16 @@ void PaneCraftingScreen::renderDetails3ds(float a) {
 		}
 	}
 
-	minecraft->font->drawWordWrap(currentItemDesc,
+	// Клипуем по нижней грани правой панели — без этого длинное описание
+	// (например, у Snow «A compact way to store snowballs») вылезает
+	// за рамку панели вниз.
+	const float descTop    = (float)(btnCraft.y + btnCraft.height + 8);
+	const float descBottom = (float)(paneRect.y + paneRect.h - 2);
+	minecraft->font->drawWordWrapClipped(currentItemDesc,
 		(float)detailsX + 4.0f,
-		(float)(btnCraft.y + btnCraft.height + 8),
+		descTop,
 		(float)detailsW - 8.0f,
+		descBottom,
 		rgbActive);
 }
 

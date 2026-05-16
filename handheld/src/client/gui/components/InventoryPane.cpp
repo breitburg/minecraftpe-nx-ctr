@@ -86,9 +86,6 @@ void InventoryPane::renderBatch( std::vector<GridItem>& items, float alpha )
 	GLuint w = (GLuint)(Gui::ScissorScaleX * bbox.w);
 	GLuint h = (GLuint)(Gui::ScissorScaleY * bbox.h);
 	glScissor(x, y, w, h);
-#ifdef __3DS__
-	glDisable2(GL_SCISSOR_TEST);
-#endif
 
 	Tesselator& t = Tesselator::instance;
 

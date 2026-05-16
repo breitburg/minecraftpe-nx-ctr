@@ -44,7 +44,10 @@ private:
 
 	void drawSlotItemAt(Tesselator& t, const ItemInstance* item, int x, int y, bool selected);
 	void rebuildCurrentItemDescLines();
-	void drawCurrentItemDesc(float x, float y, int color);
+	// `maxY` обрезает описание по нижней границе своего контейнера: длинные
+	// описания (например, у Snow «A compact way to store snowballs») иначе
+	// уезжают за рамку правой панели.
+	void drawCurrentItemDesc(float x, float y, int color, float maxY = 1e9f);
 	ItemInstance moveOver(const ItemInstance* item, int maxCount);
 	void takeAndClearSlot( int slot );
 	bool handleAddItem( int slot, const ItemInstance* item );

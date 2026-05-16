@@ -339,6 +339,65 @@ void Font::drawWordWrap( const std::string& str, float x, float y, float w, int 
 	}
 }
 
+std::string Font::clipToWidth( const std::string& str, int maxWidth )
+{
+	if (maxWidth <= 0 || str.empty()) return std::string();
+	if (width(str) <= maxWidth) return str;
+	// Откусываем символы с конца пока не влезет с многоточием.
+	std::string clipped = str;
+	while (!clipped.empty() && width(clipped + "...") > maxWidth) {
+		clipped.erase(clipped.size() - 1);
+	}
+	return clipped + "...";
+}
+
+void Font::drawWordWrapClipped( const std::string& str, float x, float y, float w, float maxY, int col )
+{
+	if (str.empty()) return;
+
+	// Тот же разбор на слова, что и в обычном drawWordWrap.
+	char* cstr = new char[str.length() + 1];
+	strncpy(cstr, str.c_str(), str.length());
+	cstr[str.length()] = 0;
+
+	const char* lims = " \n\t\r";
+	char* ptok = strtok(cstr, lims);
+
+	std::vector<std::string> words;
+	while (ptok != NULL) {
+		words.push_back(ptok);
+		ptok = strtok(NULL, lims);
+	}
+	delete[] cstr;
+
+	const float lineH = (float)getScaledLineHeight();
+	int pos = 0;
+	while (pos < (int)words.size()) {
+		// Если следующая строка уже не влезает по высоте — выходим.
+		if (y + lineH > maxY) break;
+
+		// Собираем строку по словам пока она не достигнет ширины w.
+		std::string line = words[pos++] + " ";
+		while (pos < (int)words.size() && width(line + words[pos]) < w) {
+			line += words[pos++] + " ";
+		}
+
+		// Если это будет ПОСЛЕДНЯЯ влезающая строка, а слова ещё остались —
+		// добавляем многоточие. Если оно само не помещается в ширину, режем
+		// последнее слово пока не влезет.
+		const bool isLastFitLine = (y + lineH * 2.0f) > maxY;
+		if (isLastFitLine && pos < (int)words.size()) {
+			while (!line.empty() && width(line + "...") >= w) {
+				line.erase(line.size() - 1);
+			}
+			line += "...";
+		}
+
+		drawShadow(line, x, y, col);
+		y += lineH;
+	}
+}
+
 void Font::drawSlow( const std::string& str, float x, float y, int color, bool darken /*= false*/ ) {
 	drawSlow(str.c_str(), x, y, color, darken);
 }

@@ -259,7 +259,9 @@ void FurnaceScreen::render(int xm, int ym, float a) {
 			t.endOverrideAndDraw();
 			glDisable2(GL_BLEND);
 		}
-		drawCurrentItemDesc((float)btnResult.x - 24, (float)(btnResult.y + btnResult.height + 6), rgbActive);
+		// maxY = низ экрана с небольшим запасом, чтобы текст не вылезал.
+		drawCurrentItemDesc((float)btnResult.x - 24, (float)(btnResult.y + btnResult.height + 6), rgbActive,
+		                    (float)(height - 4));
 	}
 
 	minecraft->textures->loadAndBindTexture("gui/spritesheet.png");
@@ -503,7 +505,7 @@ void FurnaceScreen::rebuildCurrentItemDescLines()
 		currentItemDescLines.push_back(line);
 }
 
-void FurnaceScreen::drawCurrentItemDesc(float x, float y, int color)
+void FurnaceScreen::drawCurrentItemDesc(float x, float y, int color, float maxY)
 {
 	if (!minecraft || !minecraft->font)
 		return;
@@ -516,6 +518,21 @@ void FurnaceScreen::drawCurrentItemDesc(float x, float y, int color)
 	const int measuredLine = minecraft->font->height("A\nA");
 	const float lineStep = (float)(measuredLine > 0 ? measuredLine : 8);
 	for (unsigned int i = 0; i < currentItemDescLines.size(); ++i) {
+		// Не лезем за нижнюю границу контейнера. Если ещё есть строки впереди,
+		// последнюю влезающую дополняем многоточием — даём понять что текст
+		// обрезан.
+		if (y + lineStep > maxY) break;
+		const bool isLastFitLine    = (y + lineStep * 2.0f) > maxY;
+		const bool hasMoreAfter     = (i + 1) < currentItemDescLines.size();
+		if (isLastFitLine && hasMoreAfter) {
+			std::string line = currentItemDescLines[i];
+			while (!line.empty() && minecraft->font->width(line + "...") >= descWidth) {
+				line.erase(line.size() - 1);
+			}
+			line += "...";
+			minecraft->font->drawShadow(line, x, y, color);
+			break;
+		}
 		minecraft->font->drawShadow(currentItemDescLines[i], x, y, color);
 		y += lineStep;
 	}

@@ -71,13 +71,18 @@ int Button::getYImage( bool hovered )
 
 void Button::renderFace(Minecraft* mc, int xm, int ym) {
 	Font* font = mc->font;
+	// Если лейбл шире кнопки (узкие табы в IngameBlockSelectionScreen в non-
+	// creative режиме, например), труncate с многоточием — иначе текст лезет
+	// на соседнюю кнопку и выглядит как кашa («Cr ft», «Burnv» вместо «Craft»,
+	// «Armor»).
+	const std::string label = font->clipToWidth(msg, width - 4);
 	if (!active) {
-		drawCenteredString(font, msg, x + width / 2, y + (height - 8) / 2, 0xffa0a0a0);
+		drawCenteredString(font, label, x + width / 2, y + (height - 8) / 2, 0xffa0a0a0);
 	} else {
 		if (hovered(mc, xm, ym) || selected) {
-			drawCenteredString(font, msg, x + width / 2, y + (height - 8) / 2, 0xffffa0);
+			drawCenteredString(font, label, x + width / 2, y + (height - 8) / 2, 0xffffa0);
 		} else {
-			drawCenteredString(font, msg, x + width / 2, y + (height - 8) / 2, 0xe0e0e0);
+			drawCenteredString(font, label, x + width / 2, y + (height - 8) / 2, 0xe0e0e0);
 		}
 	}
 }
@@ -210,11 +215,13 @@ void THeader::render( Minecraft* minecraft, int xm, int ym ) {
 	if(!visible) return;
 	Font* font = minecraft->font;
 	renderBg(minecraft, xm, ym);
-	
+
 	int xx = x + width/2;
 	if (xText != -99999)
 		xx = xText;
-	drawCenteredString(font, msg, xx, y + (height - 8) / 2, 0xe0e0e0);
+	// Truncate в width кнопки — не даём заголовку залезть на соседние табы.
+	const std::string label = font->clipToWidth(msg, width - 4);
+	drawCenteredString(font, label, xx, y + (height - 8) / 2, 0xe0e0e0);
 }
 
 void THeader::renderBg( Minecraft* minecraft, int xm, int ym )
