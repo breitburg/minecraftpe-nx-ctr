@@ -53,6 +53,7 @@ LocalPlayer::LocalPlayer(Minecraft* minecraft, Level* level, User* user, int dim
 	armorTypeHash(0)
 {
 	this->dimension = dimension;
+	autoJumpEnabled = this->minecraft ? this->minecraft->options.autoJump : true;
 	_init();
 
 	if (user != NULL) {
@@ -214,6 +215,28 @@ void LocalPlayer::aiStep() {
 
 	if (interpolateOnly())
 		updateAi();
+}
+
+float LocalPlayer::getInputSpeedMultiplier() {
+	if (!input || !input->sprinting || input->sneaking || isUsingItem()) return 1.0f;
+	return 1.22f;
+}
+
+float LocalPlayer::getWalkingSpeedModifier() {
+	return super::getWalkingSpeedModifier() * getInputSpeedMultiplier();
+}
+
+void LocalPlayer::travel(float xa, float ya) {
+	if (abilities.flying) {
+		float ydo = yd;
+		float ofs = flyingSpeed;
+		flyingSpeed = 0.05f * getInputSpeedMultiplier();
+		Mob::travel(xa, ya);
+		yd = ydo * 0.6f;
+		flyingSpeed = ofs;
+	} else {
+		super::travel(xa, ya);
+	}
 }
 
 /*public*/

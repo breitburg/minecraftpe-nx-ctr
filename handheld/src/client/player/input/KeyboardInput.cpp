@@ -33,6 +33,7 @@ void KeyboardInput::releaseAllKeys()
 	for (int i = 0; i < NumKeys; i++) {
 		keys[i] = false;
 	}
+	sprinting = false;
 	wantUp = wantDown = false;
 }
 
@@ -47,6 +48,7 @@ void KeyboardInput::tick( Player* player )
 	if (keys[KEY_RIGHT]) xa--;
 	jumping = keys[KEY_JUMP];
 	sneaking = keys[KEY_SNEAK];
+	sprinting = false;
 	if (sneaking) {
 		xa *= 0.3f;
 		ya *= 0.3f;

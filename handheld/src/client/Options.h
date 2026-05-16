@@ -51,6 +51,7 @@ public:
 		static const Option PIXELS_PER_MILLIMETER;
 		static const Option RENDER_DEBUG;
 		static const Option CONTROL_SCHEME;
+		static const Option AUTO_JUMP;
 
 		/*
 		 s tatic Option* getItem(int id) {    *
@@ -164,6 +165,7 @@ public:
 	bool serverVisible;
 	bool isJoyTouchArea;
 	bool useTouchScreen;
+	bool autoJump;
 	// Схема управления 3DS: false — стилус-камера (Cam Zone, по умолчанию),
 	// true — XYBA крутят камеру, а прыжок/инвентарь живут тач-кнопками снизу.
 	bool xybaCamera;
@@ -222,6 +224,7 @@ public:
 		if (option == &Option::DESTROY_VIBRATION) destroyVibration = !destroyVibration;
 		if (option == &Option::RENDER_DEBUG) renderDebug = !renderDebug;
 		if (option == &Option::CONTROL_SCHEME) xybaCamera = !xybaCamera;
+		if (option == &Option::AUTO_JUMP) autoJump = !autoJump;
 		if (option == &Option::ANAGLYPH) {
 			anaglyph3d = !anaglyph3d;
 			//minecraft->textures.reloadAll();
@@ -285,6 +288,8 @@ public:
 			return renderDebug;
 		if (item == &Option::CONTROL_SCHEME)
 			return xybaCamera;
+		if (item == &Option::AUTO_JUMP)
+			return autoJump;
 		return false;
 	}
 

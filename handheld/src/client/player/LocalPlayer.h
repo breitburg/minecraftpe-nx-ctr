@@ -25,6 +25,7 @@ public:
 
 	void tick();
     void move(float xa, float ya, float za);
+	void travel(float xa, float ya);
 
     void aiStep();
     void updateAi();
@@ -73,7 +74,9 @@ public:
 private:
 	void calculateFlight(float xa, float ya, float za);
 	bool isSolidTile(int x, int y, int z);
+	float getInputSpeedMultiplier();
 	void updateArmorTypeHash();
+	float getWalkingSpeedModifier();
 public:
 	IMoveInput* input;
 	bool autoJumpEnabled;

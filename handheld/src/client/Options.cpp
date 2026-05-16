@@ -31,6 +31,7 @@ void Options::initDefaultValues() {
 
 	isJoyTouchArea = false;
 	xybaCamera = false;
+	autoJump = true;
 
 	music = 1;
 	sound = 1;
@@ -164,7 +165,8 @@ Options::Option::USE_TOUCH_JOYPAD	 (17, "options.usetouchpad", false, true),
 Options::Option::DESTROY_VIBRATION   (18, "options.destroyvibration", false, true),
 Options::Option::PIXELS_PER_MILLIMETER(19, "options.pixelspermilimeter", true, false),
 Options::Option::RENDER_DEBUG		  (20, "options.renderDebug", false, true),
-Options::Option::CONTROL_SCHEME		  (21, "options.controlScheme", false, true);
+Options::Option::CONTROL_SCHEME		  (21, "options.controlScheme", false, true),
+Options::Option::AUTO_JUMP			  (22, "options.autoJump", false, true);
 
 const float Options::SOUND_MIN_VALUE = 0.0f;
 const float Options::SOUND_MAX_VALUE = 1.0f;
@@ -256,6 +258,9 @@ void Options::update() {
 		if (key == OptionStrings::Controls_Scheme) {
 			readBool(value, xybaCamera);
 		}
+		if (key == OptionStrings::Controls_AutoJump) {
+			readBool(value, autoJump);
+		}
 
 		// Feedback
 		if (key == OptionStrings::Controls_FeedbackVibration)
@@ -312,6 +317,7 @@ void Options::save() {
 	addOptionToSaveOutput(stringVec, OptionStrings::Controls_UseTouchScreen, useTouchScreen);
 	addOptionToSaveOutput(stringVec, OptionStrings::Controls_UseTouchJoypad, isJoyTouchArea);
 	addOptionToSaveOutput(stringVec, OptionStrings::Controls_Scheme, xybaCamera);
+	addOptionToSaveOutput(stringVec, OptionStrings::Controls_AutoJump, autoJump);
 	addOptionToSaveOutput(stringVec, OptionStrings::Controls_FeedbackVibration, destroyVibration);
 
 	addOptionToSaveOutput(stringVec, OptionStrings::Graphics_Debug, renderDebug);

@@ -1437,6 +1437,9 @@ void Minecraft::reloadOptions() {
 	if ((wasTouchscreen != options.useTouchScreen) || (inputHolder == 0))
 		_reloadInput();
 
+	if (player)
+		player->autoJumpEnabled = options.autoJump;
+
 	user->name = options.username;
 
 	LOGI("Reloading-options\n");
@@ -1768,6 +1771,9 @@ void Minecraft::optionUpdated( const Options::Option* option, bool value ) {
 	if(netCallback != NULL && raknetInstance->isServer() && option == &Options::Option::SERVER_VISIBLE) {
 		ServerSideNetworkHandler* ss = (ServerSideNetworkHandler*) netCallback;
 		ss->allowIncomingConnections(value);
+	}
+	if (player && option == &Options::Option::AUTO_JUMP) {
+		player->autoJumpEnabled = value;
 	}
 }
 

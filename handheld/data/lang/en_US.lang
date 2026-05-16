@@ -192,6 +192,7 @@ options.renderDebug=Debug Rendering
 options.controlScheme=Controls
 options.scheme.camzone=Cam Zone
 options.scheme.xyba=XYBA Camera
+options.autoJump=Auto Jump
 
 options.group.video=Video Settings
 options.group.game=Game Settings

@@ -1,4 +1,4 @@
-﻿#ifndef NET_MINECRAFT_CLIENT_PLAYER__N3dsInput_H__
+#ifndef NET_MINECRAFT_CLIENT_PLAYER__N3dsInput_H__
 #define NET_MINECRAFT_CLIENT_PLAYER__N3dsInput_H__
 
 #include "KeyboardInput.h"
@@ -92,14 +92,55 @@ class N3dsMoveInput : public KeyboardInput {
 public:
 	N3dsMoveInput(Options* options)
 	:	super(options)
-	{}
+	{
+		sprintTapTime = 0;
+		sprintForwardHeld = false;
+		stickSprinting = false;
+	}
 
 	void tick(Player* player) override {
 		super::tick(player);
 		// Левый Circle Pad
-		xa += -Controller::getTransformedX(moveStick, 0.2f, 1.25f, true);
-		ya += -Controller::getTransformedY(moveStick, 0.2f, 1.25f, true);
+		float stickX = Controller::getTransformedX(moveStick, 0.2f, 1.25f, true);
+		float stickY = Controller::getTransformedY(moveStick, 0.2f, 1.25f, true);
+		xa += -stickX;
+		ya += -stickY;
+		updateStickSprint(-stickY);
+		sprinting = stickSprinting;
 	}
+
+	void releaseAllKeys() override {
+		super::releaseAllKeys();
+		sprintTapTime = 0;
+		sprintForwardHeld = false;
+		stickSprinting = false;
+	}
+
+private:
+	void updateStickSprint(float forward) {
+		if (sprintTapTime > 0) sprintTapTime--;
+
+		const bool forwardNow = forward > 0.82f;
+		const bool released = forward < 0.35f;
+
+		if (!forwardNow) {
+			if (released) {
+				sprintForwardHeld = false;
+				stickSprinting = false;
+			}
+			return;
+		}
+
+		if (!sprintForwardHeld) {
+			if (sprintTapTime > 0) stickSprinting = true;
+			else sprintTapTime = 7;
+			sprintForwardHeld = true;
+		}
+	}
+
+	int sprintTapTime;
+	bool sprintForwardHeld;
+	bool stickSprinting;
 };
 
 class N3dsInputHolder : public IInputHolder {
