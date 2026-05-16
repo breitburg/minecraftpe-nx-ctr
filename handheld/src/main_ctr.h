@@ -197,8 +197,8 @@ void handleController() {
 
     if (ctrXybaInGame()) {
         float lx = 0.0f, ly = 0.0f;
-        if (kHeld & KEY_Y) lx += 1.0f;
-        if (kHeld & KEY_A) lx -= 1.0f;
+        if (kHeld & KEY_A) lx += 1.0f;
+        if (kHeld & KEY_Y) lx -= 1.0f;
         if (kHeld & KEY_B) ly += 1.0f;
         if (kHeld & KEY_X) ly -= 1.0f;
         const float kLookSpeed = 0.7f;
@@ -225,13 +225,13 @@ int main(int argc, char** argv) {
     mkdir("sdmc:/3ds/minecraftpe", 0777);
     mkdir("sdmc:/3ds/minecraftpe/cache", 0777);
 
-    FILE* log_file = fopen("sdmc:/3ds/minecraftpe/debug_log.txt", "w");
-    if (log_file) {
-        static char logBuffer[16 * 1024];
-        setvbuf(log_file, logBuffer, _IOFBF, sizeof(logBuffer));
-        dup2(fileno(log_file), STDOUT_FILENO);
-        dup2(fileno(log_file), STDERR_FILENO);
-    }
+    //FILE* log_file = fopen("sdmc:/3ds/minecraftpe/debug_log.txt", "w");
+    //if (log_file) {
+    //    static char logBuffer[16 * 1024];
+    //    setvbuf(log_file, logBuffer, _IOFBF, sizeof(logBuffer));
+    //    dup2(fileno(log_file), STDOUT_FILENO);
+    //    dup2(fileno(log_file), STDERR_FILENO);
+    //}
 
     networkInit();
     irrstInit();
@@ -260,7 +260,7 @@ int main(int argc, char** argv) {
     const u64 kSysTicksPerSec = SYSCLOCK_ARM11; // 268,123,480 на 3DS
 
     while (aptMainLoop()) {
-        FrameProf::beginFrame();
+        //FrameProf::beginFrame();
 
         {
             FrameProf::Scoped _s_input("00.input");
@@ -306,7 +306,7 @@ int main(int argc, char** argv) {
             nextFrameTick = now;
         }
 
-        FrameProf::endFrame();
+        //FrameProf::endFrame();
     }
 
     deinitGraphics();
@@ -315,7 +315,7 @@ int main(int argc, char** argv) {
     networkExit();
     romfsExit();
 
-    if (log_file) fclose(log_file);
+    //if (log_file) fclose(log_file);
 
     return 0;
 }

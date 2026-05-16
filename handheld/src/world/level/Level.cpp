@@ -17,6 +17,10 @@
 #include "../../util/PerfTimer.h"
 #include "../../util/FrameProf.h"
 
+#ifdef __3DS__
+#include <3ds.h> // svcGetSystemTick / SYSCLOCK_ARM11 для time-budget light update
+#endif
+
 #include "tile/LiquidTile.h"
 
 #include "biome/Biome.h"
@@ -1822,7 +1826,23 @@ bool Level::updateLights() {
     _maxRecurse++;
     //try {
         int max = 500;
+#ifdef __3DS__
+        // Time-budget вместо count-cap: первый поджог печки (furnace_lit имеет
+        // lightEmission=14) набивает _lightUpdates на сотни элементов, flood-
+        // fill пробегает все 500 за раз и кадр разъедет до 100+мс (юзер видел
+        // 8 FPS на «первой варке»). Размазываем работу по нескольким кадрам:
+        // 4мс на кадр — не заметно глазу, а первое распространение света
+        // завершится за ~20-30 кадров (≤1 сек).
+        const u64 _lightStartTick = svcGetSystemTick();
+        const u64 _lightMaxTicks  = (4ULL * SYSCLOCK_ARM11) / 1000ULL;
+#endif
         while ((int)_lightUpdates.size() > 0) {
+#ifdef __3DS__
+            if ((svcGetSystemTick() - _lightStartTick) > _lightMaxTicks) {
+                _maxRecurse--;
+                return true; // догоним на следующем кадре
+            }
+#endif
             if (--max <= 0)
 			{
 				_maxRecurse--;
