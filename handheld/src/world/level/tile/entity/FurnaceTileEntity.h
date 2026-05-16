@@ -13,10 +13,11 @@ class Player;
 class FurnaceTileEntity: public TileEntity,
 						 public Container
 {
-    typedef TileEntity super;
-    static const int BURN_INTERVAL = 10 * 20;
-    static const int NumItems = 3;
 public:
+	typedef TileEntity super;
+	static const int BURN_INTERVAL = 10 * 20;
+	static const int NumItems = 3;
+
     FurnaceTileEntity();
 	~FurnaceTileEntity();
 

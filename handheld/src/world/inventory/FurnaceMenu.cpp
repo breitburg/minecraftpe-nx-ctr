@@ -42,17 +42,26 @@ void FurnaceMenu::broadcastChanges()
 
 	//LOGI("broadcast: Derived: data: %d, %d : %d, %d\n", furnace->tickCount, lastTickCount, furnace->litTime, lastLitTime);
 
-	if (furnace->tickCount != lastTickCount) {
-		listener->setContainerData(this, 0, furnace->tickCount);
-		lastTickCount = furnace->tickCount;
-	}
-	if (furnace->litTime != lastLitTime) {
-		listener->setContainerData(this, 1, furnace->litTime);
-		lastLitTime = furnace->litTime;
-	}
 	if (furnace->litDuration != lastLitDuration) {
 		listener->setContainerData(this, 2, furnace->litDuration);
 		lastLitDuration = furnace->litDuration;
+	}
+
+	const int burnStep = 24;
+	const int litStep = 14;
+	const int litDuration = lastLitDuration != 0 ? lastLitDuration : FurnaceTileEntity::BURN_INTERVAL;
+	if (furnace->tickCount != lastTickCount
+	 && (furnace->tickCount == 0
+	  || furnace->tickCount * burnStep / FurnaceTileEntity::BURN_INTERVAL != lastTickCount * burnStep / FurnaceTileEntity::BURN_INTERVAL)) {
+		listener->setContainerData(this, 0, furnace->tickCount);
+		lastTickCount = furnace->tickCount;
+	}
+	if (furnace->litTime != lastLitTime
+	 && (furnace->litTime == 0
+	  || lastLitTime == 0
+	  || furnace->litTime * litStep / litDuration != lastLitTime * litStep / litDuration)) {
+		listener->setContainerData(this, 1, furnace->litTime);
+		lastLitTime = furnace->litTime;
 	}
 }
 
@@ -64,6 +73,9 @@ void FurnaceMenu::setListener( IContainerListener* listener )
 		listener->setContainerData(this, 0, furnace->tickCount);
 		listener->setContainerData(this, 1, furnace->litTime);
 		listener->setContainerData(this, 2, furnace->litDuration);
+		lastTickCount = furnace->tickCount;
+		lastLitTime = furnace->litTime;
+		lastLitDuration = furnace->litDuration;
 	}
 }
 

@@ -175,6 +175,7 @@ void FurnaceScreen::setupPositions() {
 
 	recheckRecipes();
 	setupInventoryPane();
+	rebuildCurrentItemDescLines();
 	}
 }
 
@@ -236,6 +237,10 @@ void FurnaceScreen::render(int xm, int ym, float a) {
 
 	handleRenderPane(inventoryPane, t, xm, ym, a);
 
+	glDisable2(GL_BLEND);
+	glEnable2(GL_ALPHA_TEST);
+	glEnable2(GL_TEXTURE_2D);
+	glColor4f2(1, 1, 1, 1);
 	t.colorABGR(0xffffffff);
 
 	drawSlotItemAt(t, furnace->getItem(btnIngredient.id), btnIngredient.x, btnIngredient.y, btnIngredient.id == selectedSlot);
@@ -254,7 +259,7 @@ void FurnaceScreen::render(int xm, int ym, float a) {
 			t.endOverrideAndDraw();
 			glDisable2(GL_BLEND);
 		}
-		minecraft->font->drawWordWrap(currentItemDesc, (float)btnResult.x - 24, (float)(btnResult.y + btnResult.height + 6), descWidth, rgbActive);
+		drawCurrentItemDesc((float)btnResult.x - 24, (float)(btnResult.y + btnResult.height + 6), rgbActive);
 	}
 
 	minecraft->textures->loadAndBindTexture("gui/spritesheet.png");
@@ -439,12 +444,13 @@ bool FurnaceScreen::canMoveToFurnace(int inventorySlot, const ItemInstance* item
 void FurnaceScreen::updateResult( const ItemInstance* item )
 {
 	const ItemInstance* result = furnace->getItem(FurnaceTileEntity::SLOT_RESULT);
-	if (!result->isNull()) {
+	if (result && !result->isNull()) {
 		int id = result->id;
 		if (id == lastBurnTypeId) return;
 		currentItemDesc = I18n::getDescriptionString(*result);
 		lastBurnTypeId = id;
 		this->burnResult = *result;
+		rebuildCurrentItemDescLines();
 	} else {
 		int id = (item? item->id : 0);
 		if (id == lastBurnTypeId) return;
@@ -456,7 +462,64 @@ void FurnaceScreen::updateResult( const ItemInstance* item )
 			currentItemDesc = "";
 		lastBurnTypeId = id;
 		this->burnResult = burnResult;
+		rebuildCurrentItemDescLines();
 	}
+}
+
+void FurnaceScreen::rebuildCurrentItemDescLines()
+{
+	currentItemDescLines.clear();
+	if (!minecraft || !minecraft->font || currentItemDesc.empty())
+		return;
+
+	std::string word;
+	std::string line;
+	for (unsigned int i = 0; i <= currentItemDesc.length(); ++i) {
+		const char ch = (i < currentItemDesc.length()) ? currentItemDesc[i] : ' ';
+		const bool isBreak = ch == ' ' || ch == '\n' || ch == '\t' || ch == '\r' || i == currentItemDesc.length();
+		if (!isBreak) {
+			word += ch;
+			continue;
+		}
+
+		if (!word.empty()) {
+			const std::string candidate = line.empty() ? word + " " : line + word + " ";
+			if (!line.empty() && minecraft->font->width(candidate) >= descWidth) {
+				currentItemDescLines.push_back(line);
+				line = word + " ";
+			} else {
+				line = candidate;
+			}
+			word.clear();
+		}
+
+		if (ch == '\n' && !line.empty()) {
+			currentItemDescLines.push_back(line);
+			line.clear();
+		}
+	}
+
+	if (!line.empty())
+		currentItemDescLines.push_back(line);
+}
+
+void FurnaceScreen::drawCurrentItemDesc(float x, float y, int color)
+{
+	if (!minecraft || !minecraft->font)
+		return;
+
+	glDisable2(GL_BLEND);
+	glEnable2(GL_ALPHA_TEST);
+	glEnable2(GL_TEXTURE_2D);
+	glColor4f2(1, 1, 1, 1);
+
+	const int measuredLine = minecraft->font->height("A\nA");
+	const float lineStep = (float)(measuredLine > 0 ? measuredLine : 8);
+	for (unsigned int i = 0; i < currentItemDescLines.size(); ++i) {
+		minecraft->font->drawShadow(currentItemDescLines[i], x, y, color);
+		y += lineStep;
+	}
+	glColor4f2(1, 1, 1, 1);
 }
 
 void FurnaceScreen::setupInventoryPane()

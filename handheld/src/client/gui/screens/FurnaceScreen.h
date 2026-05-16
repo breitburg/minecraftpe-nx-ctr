@@ -43,6 +43,8 @@ private:
 	void updateItems();
 
 	void drawSlotItemAt(Tesselator& t, const ItemInstance* item, int x, int y, bool selected);
+	void rebuildCurrentItemDescLines();
+	void drawCurrentItemDesc(float x, float y, int color);
 	ItemInstance moveOver(const ItemInstance* item, int maxCount);
 	void takeAndClearSlot( int slot );
 	bool handleAddItem( int slot, const ItemInstance* item );
@@ -51,6 +53,7 @@ private:
 	ItemList _items;
 
 	std::string currentItemDesc;
+	std::vector<std::string> currentItemDescLines;
 	ItemInstance burnResult;
 	float descWidth;
 	ImageButton btnClose;

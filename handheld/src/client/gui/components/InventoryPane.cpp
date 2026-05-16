@@ -177,6 +177,10 @@ void InventoryPane::renderBatch( std::vector<GridItem>& items, float alpha )
 		glEnable2(GL_TEXTURE_2D);
 	}
 	glDisable2(GL_SCISSOR_TEST);
+	glDisable2(GL_BLEND);
+	glEnable2(GL_ALPHA_TEST);
+	glEnable2(GL_TEXTURE_2D);
+	glColor4f2(1, 1, 1, 1);
 
 	//fillGradient(bbox.x - 1, bbox.y, bbox.x + bbox.w + 1, bbox.y + 20, 0x99000000, 0x00000000);
 	//fillGradient(bbox.x - 1, bbox.y + bbox.h - 20, bbox.x + bbox.w + 1, bbox.y + bbox.h, 0x00000000, 0x99000000);
@@ -187,6 +191,10 @@ void InventoryPane::renderBatch( std::vector<GridItem>& items, float alpha )
 		drawScrollBar(hScroll);
 		drawScrollBar(vScroll);
 	}
+	glDisable2(GL_BLEND);
+	glEnable2(GL_ALPHA_TEST);
+	glEnable2(GL_TEXTURE_2D);
+	glColor4f2(1, 1, 1, 1);
 }
 
 bool InventoryPane::onSelect( int gridId, bool selected )
