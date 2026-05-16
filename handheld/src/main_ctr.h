@@ -68,7 +68,7 @@ void networkExit() {
 }
 
 static void initGraphics(App* app, AppContext* state) {
-    //osSetSpeedupEnable(true);
+    osSetSpeedupEnable(true);
 
     gfxInitDefault();
     nova_init();
