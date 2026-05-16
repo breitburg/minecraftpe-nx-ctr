@@ -195,7 +195,7 @@ void FurnaceScreen::handleRenderPane(Touch::InventoryPane* pane, Tesselator& t, 
 		pane->markerIndex = -1;
 		if (pane->queryHoldTime(&id, &ms)) {
 			heldMs = ms;
-			
+
 			const ItemInstance* item = inventoryItems[id];
 			int count = (item && !item->isNull())? item->count : 0;
 			float maxHoldMs = item? 700 + 10 * item->count: MaxHoldMs;
@@ -466,6 +466,7 @@ void FurnaceScreen::setupInventoryPane()
 	inventoryPane = new Touch::InventoryPane(this, minecraft, inventoryPaneRect, inventoryPaneRect.w, BorderPixels, inventoryItems.size(), ItemSize, (int)BorderPixels);
 	inventoryPane->fillMarginX = 0;
 	inventoryPane->fillMarginY = 0;
+	inventoryPane->setRenderBackground(false);
 	guiPaneFrame->setSize((float)inventoryPaneRect.w + 2, (float)inventoryPaneRect.h + 2);
 	//LOGI("Creating new pane: %d %p\n", inventoryItems.size(), inventoryPane);
 }
@@ -544,7 +545,7 @@ bool FurnaceScreen::handleAddItem( int slot, const ItemInstance* item )
 		ItemInstance moved = moveOver(item, item->getMaxStackSize());
 		player->containerMenu->setSlot(slot, &moved);
 	}
-	 
+
 	if (minecraft->level->isClientSide) {
 		ContainerSetSlotPacket p(menu->containerId, slot, *furnaceItem);
 		minecraft->raknetInstance->send(p);

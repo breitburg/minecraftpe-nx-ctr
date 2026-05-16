@@ -1516,7 +1516,13 @@ void Minecraft::hostMultiplayer(int port) {
     delete netCallback;
     netCallback = NULL;
 
-#if !defined(NO_NETWORK)
+#if defined(__3DS__)
+    // Мультиплеер на 3DS отключён: при активном Wi-Fi вызов RakNet host()
+    // подвисает и мир не грузится. Игра прекрасно работает локально-офлайн
+    // (netCallback == NULL), поэтому хостинг просто не запускаем.
+    (void)port;
+    LOGI("[3DS] Multiplayer disabled — running local world offline.\n");
+#elif !defined(NO_NETWORK)
 	bool hosted = false;
     #ifdef STANDALONE_SERVER
         hosted = raknetInstance->host(user->name, port, 16);

@@ -13,7 +13,7 @@ namespace Touch {
 
 class IInventoryPaneCallback;
 
-class InventoryPane: public ScrollingPane 
+class InventoryPane: public ScrollingPane
 {
 	typedef ScrollingPane super;
 public:
@@ -26,6 +26,7 @@ public:
 	void drawScrollBar( ScrollBar& hScroll );
 
 	void setRenderDecorations(bool value);
+	void setRenderBackground(bool value);
 
 	IntRectangle rect;
 	int paneWidth;
@@ -44,6 +45,7 @@ private:
 	int lastItemTicks;
     int BorderPixels;
 	bool renderDecorations;
+	bool renderBackground;
 
 	IntRectangle bg;
 };

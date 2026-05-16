@@ -40,7 +40,11 @@ void Options::initDefaultValues() {
 	bobView = true;
 	anaglyph3d = false;
 	limitFramerate = false;
+#ifdef __3DS__
+	fancyGraphics = false;//false;
+#else
 	fancyGraphics = true;//false;
+#endif
 	ambientOcclusion = false;
 	if(minecraft->supportNonTouchScreen())
 		useTouchScreen = false;

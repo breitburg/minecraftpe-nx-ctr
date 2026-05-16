@@ -42,13 +42,20 @@ InventoryPane::InventoryPane( IInventoryPaneCallback* screen, Minecraft* mc, con
 	markerType(1),
 	markerIndex(-1),
 	markerShare(0),
-	renderDecorations(true)
+	renderDecorations(true),
+	renderBackground(true)
 {
 	_clickArea = new RectangleArea(0, 0, 0, 0);
 	area._x0 = rect.x - clickMarginH;
 	area._x1 = rect.x + rect.w + clickMarginH;
 	area._y0 -= By;
 	area._y1 += By;
+
+	const int left = bbox.x + (bbox.w - paneWidth) / 2;
+	bg.x = left;
+	bg.w = left + paneWidth;
+	bg.y = bbox.y - fillMarginY;
+	bg.h = bbox.y + bbox.h + fillMarginY;
 
 	/*
 	const int left = bbox.x + (bbox.w - paneWidth) / 2;
@@ -66,7 +73,8 @@ InventoryPane::~InventoryPane() {
 void InventoryPane::renderBatch( std::vector<GridItem>& items, float alpha )
 {
 	//fill(bg.x, bg.y, bg.w, bg.h, 0xff333333);
-	fill((float)(bbox.x-fillMarginX-1), (float)(bbox.y-fillMarginY), (float)(bbox.x + bbox.w + fillMarginX+1), (float)(bbox.y + bbox.h + fillMarginY), 0xff333333);
+	if (renderBackground)
+		fill((float)(bbox.x-fillMarginX-1), (float)(bbox.y-fillMarginY), (float)(bbox.x + bbox.w + fillMarginX+1), (float)(bbox.y + bbox.h + fillMarginY), 0xff333333);
 	//fill(0.0f, (float)(bbox.y-fillMarginY), 400.0f, (float)(bbox.y + bbox.h + fillMarginY), 0xff333333);//(float)(bbox.x-fillMarginX), (float)(bbox.y-fillMarginY), (float)(bbox.x + bbox.w + fillMarginX), (float)(bbox.y + bbox.h + fillMarginY), 0xff333333);
 	glEnable2(GL_BLEND);
 	glDisable2(GL_ALPHA_TEST);
@@ -78,6 +86,9 @@ void InventoryPane::renderBatch( std::vector<GridItem>& items, float alpha )
 	GLuint w = (GLuint)(Gui::ScissorScaleX * bbox.w);
 	GLuint h = (GLuint)(Gui::ScissorScaleY * bbox.h);
 	glScissor(x, y, w, h);
+#ifdef __3DS__
+	glDisable2(GL_SCISSOR_TEST);
+#endif
 
 	Tesselator& t = Tesselator::instance;
 
@@ -112,7 +123,7 @@ void InventoryPane::renderBatch( std::vector<GridItem>& items, float alpha )
 				t.color(gv, gv, gv, (allowed && citem->count <= 0)?0x60:0xff);
 			} else {
 				t.color(255, 255, 255, (allowed && citem->count <= 0)?0x60:0xff);
-			}          
+			}
 			t.noColor();
 			float xx = Gui::floorAlignToScreenPixel(item.xf + BorderPixels + 4);
 			float yy = Gui::floorAlignToScreenPixel(item.yf + BorderPixels + 4);
@@ -169,11 +180,13 @@ void InventoryPane::renderBatch( std::vector<GridItem>& items, float alpha )
 
 	//fillGradient(bbox.x - 1, bbox.y, bbox.x + bbox.w + 1, bbox.y + 20, 0x99000000, 0x00000000);
 	//fillGradient(bbox.x - 1, bbox.y + bbox.h - 20, bbox.x + bbox.w + 1, bbox.y + bbox.h, 0x00000000, 0x99000000);
-	fillGradient(bg.x - fillMarginX, bbox.y, bg.w + fillMarginX, bbox.y + 20, 0x99000000, 0x00000000);
-	fillGradient(bg.x - fillMarginX, bbox.y + bbox.h - 20, bg.w + fillMarginX, bbox.y + bbox.h, 0x00000000, 0x99000000);
+	if (renderBackground) {
+		fillGradient(bg.x - fillMarginX, bbox.y, bg.w + fillMarginX, bbox.y + 20, 0x99000000, 0x00000000);
+		fillGradient(bg.x - fillMarginX, bbox.y + bbox.h - 20, bg.w + fillMarginX, bbox.y + bbox.h, 0x00000000, 0x99000000);
 
-	drawScrollBar(hScroll);
-	drawScrollBar(vScroll);
+		drawScrollBar(hScroll);
+		drawScrollBar(vScroll);
+	}
 }
 
 bool InventoryPane::onSelect( int gridId, bool selected )
@@ -205,6 +218,10 @@ void InventoryPane::tick()
 
 void InventoryPane::setRenderDecorations( bool value ) {
 	renderDecorations = value;
+}
+
+void InventoryPane::setRenderBackground( bool value ) {
+	renderBackground = value;
 }
 
 }
