@@ -24,18 +24,26 @@ void GuiComponent::drawString( Font* font, const std::string& str, int x, int y,
 	font->drawShadow(str, (float)x, (float)y /*- font->height(str)/2*/, color);
 }
 
+// Полтекселя внутрь по правому/нижнему краю спрайта. При дробном GUI-scale
+// (3DS) семплинг точно на границе спрайта с GL_NEAREST затекает в соседнюю
+// ячейку атласа — отсюда чёрная полоса под сердцами и маджента под пузырьками
+// (фон icons.png — сплошная маджента). Сдвиг края внутрь убирает затекание.
 void GuiComponent::blit( int x, int y, int sx, int sy, int w, int h, int sw/*=0*/, int sh/*=0*/ )
 {
 	if (!sw) sw = w;
 	if (!sh) sh = h;
 	float us = 1 / 256.0f;
 	float vs = 1 / 256.0f;
+	float u0 = (float)(sx)      * us;
+	float u1 = (float)(sx + sw) * us - us * 0.5f;
+	float v0 = (float)(sy)      * vs;
+	float v1 = (float)(sy + sh) * vs - vs * 0.5f;
 	Tesselator& t = Tesselator::instance;
 	t.begin();
-	t.vertexUV((float)(x)    , (float)(y + h), blitOffset, (float)(sx    ) * us, (float)(sy + sh) * vs);
-	t.vertexUV((float)(x + w), (float)(y + h), blitOffset, (float)(sx + sw) * us, (float)(sy + sh) * vs);
-	t.vertexUV((float)(x + w), (float)(y)    , blitOffset, (float)(sx + sw) * us, (float)(sy    ) * vs);
-	t.vertexUV((float)(x)    , (float)(y)    , blitOffset, (float)(sx    ) * us, (float)(sy    ) * vs);
+	t.vertexUV((float)(x)    , (float)(y + h), blitOffset, u0, v1);
+	t.vertexUV((float)(x + w), (float)(y + h), blitOffset, u1, v1);
+	t.vertexUV((float)(x + w), (float)(y)    , blitOffset, u1, v0);
+	t.vertexUV((float)(x)    , (float)(y)    , blitOffset, u0, v0);
 	t.draw();
 }
 void GuiComponent::blit( float x, float y, int sx, int sy, float w, float h, int sw/*=0*/, int sh/*=0*/ )
@@ -44,12 +52,16 @@ void GuiComponent::blit( float x, float y, int sx, int sy, float w, float h, int
 	if (!sh) sh = (int)h;
 	float us = 1 / 256.0f;
 	float vs = 1 / 256.0f;
+	float u0 = (float)(sx)      * us;
+	float u1 = (float)(sx + sw) * us - us * 0.5f;
+	float v0 = (float)(sy)      * vs;
+	float v1 = (float)(sy + sh) * vs - vs * 0.5f;
 	Tesselator& t = Tesselator::instance;
 	t.begin();
-	t.vertexUV(x    , y + h, blitOffset, (float)(sx    ) * us, (float)(sy + sh) * vs);
-	t.vertexUV(x + w, y + h, blitOffset, (float)(sx + sw) * us, (float)(sy + sh) * vs);
-	t.vertexUV(x + w, y    , blitOffset, (float)(sx + sw) * us, (float)(sy    ) * vs);
-	t.vertexUV(x    , y    , blitOffset, (float)(sx    ) * us, (float)(sy    ) * vs);
+	t.vertexUV(x    , y + h, blitOffset, u0, v1);
+	t.vertexUV(x + w, y + h, blitOffset, u1, v1);
+	t.vertexUV(x + w, y    , blitOffset, u1, v0);
+	t.vertexUV(x    , y    , blitOffset, u0, v0);
 	t.draw();
 }
 

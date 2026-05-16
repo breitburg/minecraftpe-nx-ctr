@@ -185,6 +185,7 @@ static unsigned int minimap_color_for_tile(int tileId, Level* level, int x, int 
 		case 42: return 0xffdddddd; // iron block
 		case 49: return 0xff1a0d30; // obsidian
 		case 56: return 0xff7ad6dc; // diamond ore
+		case 78: return 0xffffffff; // snow layer (top snow)
 		case 79: return 0xffa0c0e0; // ice
 		case 80: return 0xffeeeeff; // snow
 		case 82: return 0xff9099a9; // clay
@@ -247,7 +248,12 @@ void Gui::buildWorldMinimap() {
 				const int lz = wz - cz * 16;
 				const int h = cachedChunk->getHeightmap(lx, lz);
 				if (h > 0) {
-					const int tileId = cachedChunk->getTile(lx, h - 1, lz);
+					int tileId = cachedChunk->getTile(lx, h - 1, lz);
+					// Тонкий снежный слой (topSnow) часто не поднимает heightmap —
+					// поверхностью числится трава под ним. Подглядываем на блок
+					// выше: если там снег, рисуем точку белой.
+					if (h < 128 && cachedChunk->getTile(lx, h, lz) == 78)
+						tileId = 78;
 					const unsigned int argb = minimap_color_for_tile(tileId, level, wx, h - 1, wz);
 					if ((argb & 0xff000000) != 0)
 						abgr = minimap_argb_to_abgr(argb);
@@ -450,6 +456,38 @@ void Gui::renderWorldMinimap(float a) {
 // игроку, что свободная область используется для управления камерой стилусом.
 // Шейп: octagon-like (прямоугольник + горизонтальная полоса = крест без углов)
 // → выглядит как rect со скруглёнными углами 2px.
+void Gui::getControlButtonRect(int which, int& x0, int& y0, int& x1, int& y1) {
+	const int screenWidth  = (int)(minecraft->width  * InvGuiScale);
+	const int screenHeight = (int)(minecraft->height * InvGuiScale);
+	const int mapX0 = screenWidth - kMinimapSize - 4;
+	const int gap = 4;
+	const int px0 = 4;
+	const int px1 = mapX0 - gap;
+	const int py0 = getHotbarYSlot(screenHeight) + 25;
+	const int py1 = screenHeight - 4;
+	const int mid = (px0 + px1) / 2;
+	if (which == 1) { x0 = px0;     y0 = py0; x1 = mid - 2; y1 = py1; } // Jump
+	else            { x0 = mid + 2; y0 = py0; x1 = px1;     y1 = py1; } // Inventory
+}
+
+int Gui::controlButtonAt(int mouseX, int mouseY) {
+	if (!minecraft->options.xybaCamera) return 0;
+	if (!minecraft->level || !minecraft->player) return 0;
+	// Кнопки рисуются только когда нижний экран не занят меню/инвентарём.
+	if (minecraft->screen != NULL) return 0;
+	// mouseX/Y приходят в сыром Mouse-пространстве — переводим в GUI-координаты
+	// тем же множителем, что и getSlotIdAt().
+	const int gx = (int)(mouseX * InvGuiScale);
+	const int gy = (int)(mouseY * InvGuiScale);
+	for (int which = 1; which <= 2; which++) {
+		int bx0, by0, bx1, by1;
+		getControlButtonRect(which, bx0, by0, bx1, by1);
+		if (gx >= bx0 && gx < bx1 && gy >= by0 && gy < by1)
+			return which;
+	}
+	return 0;
+}
+
 void Gui::renderCamZoneHint(float a) {
 	(void)a;
 	if (!minecraft->level || !minecraft->player) return;
@@ -474,6 +512,48 @@ void Gui::renderCamZoneHint(float a) {
 	glBlendFunc2(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
 	Tesselator& t = Tesselator::instance;
+
+	// Схема "XYBA = камера": нижний экран занят не подсказкой Cam Zone, а
+	// двумя тач-кнопками — Jump (слева, удержание) и Inventory (справа, тап).
+	if (minecraft->options.xybaCamera) {
+		int b[2][4];
+		getControlButtonRect(1, b[0][0], b[0][1], b[0][2], b[0][3]);
+		getControlButtonRect(2, b[1][0], b[1][1], b[1][2], b[1][3]);
+
+		t.begin();
+		for (int i = 0; i < 2; i++) {
+			const float bx0 = (float)b[i][0], by0 = (float)b[i][1];
+			const float bx1 = (float)b[i][2], by1 = (float)b[i][3];
+			t.colorABGR(0xb0303040); // заливка
+			t.vertex(bx0, by1, 0); t.vertex(bx1, by1, 0);
+			t.vertex(bx1, by0, 0); t.vertex(bx0, by0, 0);
+			t.colorABGR(0xff707088); // рамка 1px
+			t.vertex(bx0, by0 + 1, 0); t.vertex(bx1, by0 + 1, 0);
+			t.vertex(bx1, by0,     0); t.vertex(bx0, by0,     0);
+			t.vertex(bx0, by1,     0); t.vertex(bx1, by1,     0);
+			t.vertex(bx1, by1 - 1, 0); t.vertex(bx0, by1 - 1, 0);
+			t.vertex(bx0,     by1, 0); t.vertex(bx0 + 1, by1, 0);
+			t.vertex(bx0 + 1, by0, 0); t.vertex(bx0,     by0, 0);
+			t.vertex(bx1 - 1, by1, 0); t.vertex(bx1,     by1, 0);
+			t.vertex(bx1,     by0, 0); t.vertex(bx1 - 1, by0, 0);
+		}
+		t.draw();
+
+		glEnable2(GL_TEXTURE_2D);
+		glEnable2(GL_ALPHA_TEST);
+
+		Font* f = minecraft->font;
+		if (f) {
+			const char* labels[2] = { "Jump", "Inventory" };
+			for (int i = 0; i < 2; i++) {
+				int tw = f->width(labels[i]);
+				int tx = (b[i][0] + b[i][2]) / 2 - tw / 2;
+				int ty = (b[i][1] + b[i][3]) / 2 - 4;
+				f->drawShadow(labels[i], tx, ty, 0xffe8e8f0);
+			}
+		}
+		return;
+	}
 
 	// "Скруглённый" rect = два overlap'ящих rect-а (вертикальный + горизонтальный),
 	// углы по r×r остаются "обкусанными" — выглядит как rounded.

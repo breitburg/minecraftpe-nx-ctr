@@ -30,6 +30,7 @@ void Options::initDefaultValues() {
 	isLeftHanded = false;
 
 	isJoyTouchArea = false;
+	xybaCamera = false;
 
 	music = 1;
 	sound = 1;
@@ -158,7 +159,8 @@ Options::Option::USE_TOUCHSCREEN	 (16, "options.usetouchscreen", false, true),
 Options::Option::USE_TOUCH_JOYPAD	 (17, "options.usetouchpad", false, true),
 Options::Option::DESTROY_VIBRATION   (18, "options.destroyvibration", false, true),
 Options::Option::PIXELS_PER_MILLIMETER(19, "options.pixelspermilimeter", true, false),
-Options::Option::RENDER_DEBUG		  (20, "options.renderDebug", false, true);
+Options::Option::RENDER_DEBUG		  (20, "options.renderDebug", false, true),
+Options::Option::CONTROL_SCHEME		  (21, "options.controlScheme", false, true);
 
 const float Options::SOUND_MIN_VALUE = 0.0f;
 const float Options::SOUND_MAX_VALUE = 1.0f;
@@ -247,6 +249,10 @@ void Options::update() {
 				isJoyTouchArea = false;
 		}
 
+		if (key == OptionStrings::Controls_Scheme) {
+			readBool(value, xybaCamera);
+		}
+
 		// Feedback
 		if (key == OptionStrings::Controls_FeedbackVibration)
 			readBool(value, destroyVibration);
@@ -301,6 +307,7 @@ void Options::save() {
 	addOptionToSaveOutput(stringVec, OptionStrings::Controls_IsLefthanded, isLeftHanded);
 	addOptionToSaveOutput(stringVec, OptionStrings::Controls_UseTouchScreen, useTouchScreen);
 	addOptionToSaveOutput(stringVec, OptionStrings::Controls_UseTouchJoypad, isJoyTouchArea);
+	addOptionToSaveOutput(stringVec, OptionStrings::Controls_Scheme, xybaCamera);
 	addOptionToSaveOutput(stringVec, OptionStrings::Controls_FeedbackVibration, destroyVibration);
 
 	addOptionToSaveOutput(stringVec, OptionStrings::Graphics_Debug, renderDebug);
@@ -356,6 +363,9 @@ std::string Options::getMessage(const Option* item) {
 	}
 	if (item == &Options::Option::GUI_SCALE) {
 		return GUI_SCALE[guiScale];
+	}
+	if (item == &Options::Option::CONTROL_SCHEME) {
+		return xybaCamera ? "options.scheme.xyba" : "options.scheme.camzone";
 	}
 
 	if (item->isBoolean()) {

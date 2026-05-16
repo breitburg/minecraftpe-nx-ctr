@@ -345,6 +345,9 @@ void Minecraft::leaveGame(bool renameLevel /*=false*/)
 		LOGI("level->getChunkSource()->saveAll\n");
 		// If server or wanting to save level as client, save all unsaved chunks!
 		level->getChunkSource()->saveAll(true);
+		// Также сохраняем метаданные уровня (позиция игрока, время суток и т.п.) —
+		// чтобы выход через «Quit to title» полноценно сохранял мир.
+		level->saveLevelData();
 	}
 
 	LOGI("Clearing levels\n");

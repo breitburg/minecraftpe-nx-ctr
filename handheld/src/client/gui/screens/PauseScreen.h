@@ -24,6 +24,7 @@ protected:
     void buttonClicked(Button* button);
 private:
 	void updateServerVisibilityText();
+	void updateControlSchemeText();
 
 	int saveStep;
 	int visibleTime;
@@ -33,6 +34,7 @@ private:
 	Button* bQuit;
 	Button* bQuitAndSaveLocally;
 	Button* bServerVisibility;
+	Button* bControlScheme;
 //	Button* bThirdPerson;
 
 	OptionButton bSound;

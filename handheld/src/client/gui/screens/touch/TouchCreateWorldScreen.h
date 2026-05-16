@@ -26,6 +26,9 @@ public:
 
 	void tick() override;
 	void render(int xm, int ym, float a) override;
+#ifdef __3DS__
+	bool renderOnTopScreen3ds() override;
+#endif
 
 	void buttonClicked(Button* button) override;
 	bool handleBackEvent(bool isDown) override;

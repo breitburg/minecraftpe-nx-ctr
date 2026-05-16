@@ -25,7 +25,7 @@
 namespace {
 const int StartMenuIconSrcSize = 75; // Actual icon size in touchgui.png (always 75x75)
 #ifdef __3DS__
-const int StartMenuButtonSize = 44;
+const int StartMenuButtonSize = 66;
 const float StartMenuTitleScale = 0.85f;
 #else
 const int StartMenuButtonSize = 75;

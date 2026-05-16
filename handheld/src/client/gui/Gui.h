@@ -50,6 +50,13 @@ public:
 	void buildWorldMinimap();
 	void renderWorldMinimap(float a);
 	void renderCamZoneHint(float a);
+	// Тач-кнопки нижнего экрана для схемы управления "XYBA = камера".
+	// getControlButtonRect — прямоугольник кнопки в GUI-координатах
+	// (which: 1 = Jump, 2 = Inventory).
+	// controlButtonAt — попадание тача (mouseX/Y в сыром Mouse-пространстве,
+	// как у getSlotIdAt); возвращает 0 / 1 / 2. Активно только в схеме XYBA.
+	void getControlButtonRect(int which, int& x0, int& y0, int& x1, int& y1);
+	int controlButtonAt(int mouseX, int mouseY);
 #endif
 
 	void renderToolBar( float a, int ySlot, const int screenWidth );

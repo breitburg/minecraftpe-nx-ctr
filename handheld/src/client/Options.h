@@ -50,6 +50,7 @@ public:
 
 		static const Option PIXELS_PER_MILLIMETER;
 		static const Option RENDER_DEBUG;
+		static const Option CONTROL_SCHEME;
 
 		/*
 		 s tatic Option* getItem(int id) {    *
@@ -163,6 +164,9 @@ public:
 	bool serverVisible;
 	bool isJoyTouchArea;
 	bool useTouchScreen;
+	// Схема управления 3DS: false — стилус-камера (Cam Zone, по умолчанию),
+	// true — XYBA крутят камеру, а прыжок/инвентарь живут тач-кнопками снизу.
+	bool xybaCamera;
 	float pixelsPerMillimeter;
 	Options(Minecraft* minecraft, const std::string& workingDirectory)
 	:	minecraft(minecraft)
@@ -217,6 +221,7 @@ public:
 		if (option == &Option::USE_TOUCH_JOYPAD) isJoyTouchArea = !isJoyTouchArea;
 		if (option == &Option::DESTROY_VIBRATION) destroyVibration = !destroyVibration;
 		if (option == &Option::RENDER_DEBUG) renderDebug = !renderDebug;
+		if (option == &Option::CONTROL_SCHEME) xybaCamera = !xybaCamera;
 		if (option == &Option::ANAGLYPH) {
 			anaglyph3d = !anaglyph3d;
 			//minecraft->textures.reloadAll();
@@ -278,6 +283,8 @@ public:
 			return destroyVibration;
 		if (item == &Option::RENDER_DEBUG)
 			return renderDebug;
+		if (item == &Option::CONTROL_SCHEME)
+			return xybaCamera;
 		return false;
 	}
 

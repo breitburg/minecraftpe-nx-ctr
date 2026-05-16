@@ -189,6 +189,9 @@ options.usetouchscreen=Use Touchscreen
 options.usetouchpad=Use Touchpad
 options.destroyvibration=Vibration Feedback
 options.renderDebug=Debug Rendering
+options.controlScheme=Controls
+options.scheme.camzone=Cam Zone
+options.scheme.xyba=XYBA Camera
 
 options.group.video=Video Settings
 options.group.game=Game Settings

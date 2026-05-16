@@ -1,6 +1,11 @@
 #include "TouchCreateWorldScreen.h"
 #include "../ProgressScreen.h"
 #include "../../../Minecraft.h"
+#include "../../Font.h"
+#include "../../../renderer/Tesselator.h"
+#include "../../../renderer/Textures.h"
+#include "../../../renderer/TextureData.h"
+#include "../../../../util/Mth.h"
 
 namespace Touch {
 
@@ -37,6 +42,13 @@ void CreateWorldScreen::setupPositions() {
 
     int padding = 30;
 
+    // Кнопки этого экрана компактнее дефолтного TButton (78x30) — иначе
+    // верхняя панель и выбор режима занимают слишком много места.
+    bBack.width  = bStart.width  = 64;
+    bBack.height = bStart.height = 24;
+    bGameMode.width  = 60;
+    bGameMode.height = 22;
+
     bBack.x = 0;
     bBack.y = 0;
 
@@ -65,10 +77,46 @@ void CreateWorldScreen::tick() {
     bGameMode.msg = (this->gameType == GameType::Creative) ? "Creative" : "Survival";
 }
 
+#ifdef __3DS__
+bool CreateWorldScreen::renderOnTopScreen3ds() { return true; }
+#endif
+
 void CreateWorldScreen::render( int xm, int ym, float a )
 {
     renderDirtBackground(0);
     glEnable2(GL_BLEND);
+
+#ifdef __3DS__
+    // Верхний экран: лого + заголовок, чтобы экран не оставался пустым.
+    if (Screen::s_isRenderingTopScreen3ds) {
+        TextureId id = minecraft->textures->loadTexture("gui/title.png");
+        const TextureData* data = minecraft->textures->getTemporaryTextureData(id);
+        if (data) {
+            minecraft->textures->bind(id);
+            const float cx = (float)width / 2.0f;
+            const float cy = (float)height * 0.38f;
+            const float wh = Mth::Min((float)width * 0.45f, (float)data->w);
+            const float scale = 2.0f * wh / (float)data->w;
+            const float h = scale * (float)data->h;
+            const float top = cy - h / 2.0f;
+
+            Tesselator& t = Tesselator::instance;
+            glColor4f2(1, 1, 1, 1);
+            t.begin();
+                t.vertexUV(cx-wh, top+h, blitOffset, 0, 1);
+                t.vertexUV(cx+wh, top+h, blitOffset, 1, 1);
+                t.vertexUV(cx+wh, top+0, blitOffset, 1, 0);
+                t.vertexUV(cx-wh, top+0, blitOffset, 0, 0);
+            t.draw();
+        }
+        const char* caption = "Create New World";
+        int tw = minecraft->font->width(caption);
+        drawString(font, caption, (width - tw) / 2,
+            (int)((float)height * 0.38f) + 40, 0xffffdd55);
+        glDisable2(GL_BLEND);
+        return;
+    }
+#endif
 
     drawCenteredString(minecraft->font, (this->gameType == GameType::Creative) ? "Unlimited resources and flying" : "Mobs, health and gather resources", width/2, bGameMode.y + bGameMode.height + 3, 0xffcccccc);
     drawCenteredString(minecraft->font, "World Generator seed, Leave blank for random.", width/2, bSeed.y - 10, 0xffcccccc);

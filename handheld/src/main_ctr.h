@@ -88,15 +88,29 @@ static void deinitGraphics() {
     gfxExit();
 }
 
+// Указатель на приложение — нужен обработчикам ввода, чтобы читать опции
+// (схему управления) и спрашивать у Gui попадание тача по кнопкам.
+static MAIN_CLASS* s_app = nullptr;
+
+// Схема "XYBA = камера" активна только непосредственно в игре: в меню XYBA
+// должны работать как обычно (B = назад и т.п.).
+static bool ctrXybaInGame() {
+    return s_app && s_app->options.xybaCamera
+        && s_app->level != nullptr && s_app->screen == nullptr;
+}
+
 void handleTouch() {
     static bool wasTouching = false;
     static int16_t lastX = 0;
     static int16_t lastY = 0;
+    static bool jumpHeld = false;
+    static bool invHeld  = false;
 
     touchPosition touch;
     hidTouchRead(&touch);
 
     bool isTouching = (hidKeysHeld() & KEY_TOUCH) != 0;
+    bool xyba = ctrXybaInGame();
 
     if (isTouching) {
         int16_t x = (touch.px * NOVA_SCREEN_W) / NOVA_SCREEN_BOTTOM_H;
@@ -104,11 +118,12 @@ void handleTouch() {
 
         if (!wasTouching) {
             Mouse::feed(MouseAction::ACTION_LEFT, MouseAction::DATA_DOWN, x, y);
-            Multitouch::feed(1, MouseAction::DATA_DOWN, x, y, 0);
+            // В схеме XYBA стилус не крутит камеру — Multitouch не кормим.
+            if (!xyba) Multitouch::feed(1, MouseAction::DATA_DOWN, x, y, 0);
             wasTouching = true;
         } else if (x != lastX || y != lastY) {
             Mouse::feed(MouseAction::ACTION_MOVE, MouseAction::DATA_DOWN, x, y);
-            Multitouch::feed(1, MouseAction::DATA_DOWN, x, y, 0);
+            if (!xyba) Multitouch::feed(1, MouseAction::DATA_DOWN, x, y, 0);
         }
 
         lastX = x;
@@ -116,8 +131,24 @@ void handleTouch() {
     }
     else if (wasTouching) {
         Mouse::feed(MouseAction::ACTION_LEFT, MouseAction::DATA_UP, lastX, lastY);
-        Multitouch::feed(1, MouseAction::DATA_UP, lastX, lastY, 0);
+        if (!xyba) Multitouch::feed(1, MouseAction::DATA_UP, lastX, lastY, 0);
         wasTouching = false;
+    }
+
+    // Тач-кнопки нижнего экрана (схема XYBA): Jump — удержание, Inventory — тап.
+    int btn = (xyba && isTouching && s_app)
+        ? s_app->gui.controlButtonAt(lastX, lastY)
+        : 0;
+
+    bool wantJump = (btn == 1);
+    if (wantJump != jumpHeld) {
+        Keyboard::feed(Keyboard::KEY_SPACE, wantJump ? 1 : 0);
+        jumpHeld = wantJump;
+    }
+    bool wantInv = (btn == 2);
+    if (wantInv != invHeld) {
+        Keyboard::feed(Keyboard::KEY_E, wantInv ? 1 : 0);
+        invHeld = wantInv;
     }
 }
 void printMemoryStats() {
@@ -160,10 +191,24 @@ void handleController() {
     if(changed & KEY_DRIGHT) Keyboard::feed(Keyboard::KEY_RIGHT, (kHeld & KEY_DRIGHT) ? 1 : 0);
     if(changed & KEY_DLEFT) Keyboard::feed(Keyboard::KEY_LEFT, (kHeld & KEY_DLEFT) ? 1 : 0);
     if(changed & KEY_DDOWN) Keyboard::feed(Keyboard::KEY_LSHIFT, (kHeld & KEY_DDOWN) ? 1 : 0);
-    if(changed & KEY_A) Keyboard::feed(Keyboard::KEY_SPACE, (kHeld & KEY_A) ? 1 : 0);
-    if(changed & KEY_X) Keyboard::feed(Keyboard::KEY_C, (kHeld & KEY_X) ? 1 : 0);
-    if(changed & KEY_B) Keyboard::feed(Keyboard::KEY_ESCAPE, (kHeld & KEY_B) ? 1 : 0);
-    if(changed & KEY_Y) Keyboard::feed(Keyboard::KEY_E, (kHeld & KEY_Y) ? 1 : 0);
+
+    if (ctrXybaInGame()) {
+        // Схема XYBA = камера: грани крутят вид. Кормим look-стик (2), тот же
+        // путь, что C-Stick — N3dsTurnBuild читает его в getTurnDelta().
+        // Y — вверх, A — вниз, X — влево, B — вправо.
+        float lx = 0.0f, ly = 0.0f;
+        if (kHeld & KEY_B) lx += 1.0f;
+        if (kHeld & KEY_X) lx -= 1.0f;
+        if (kHeld & KEY_Y) ly += 1.0f;
+        if (kHeld & KEY_A) ly -= 1.0f;
+        const float kLookSpeed = 0.8f; // подбирается на вкус
+        Controller::feed(2, Controller::STATE_TOUCH, lx * kLookSpeed, ly * kLookSpeed);
+    } else {
+        if(changed & KEY_A) Keyboard::feed(Keyboard::KEY_SPACE, (kHeld & KEY_A) ? 1 : 0);
+        if(changed & KEY_X) Keyboard::feed(Keyboard::KEY_C, (kHeld & KEY_X) ? 1 : 0);
+        if(changed & KEY_B) Keyboard::feed(Keyboard::KEY_ESCAPE, (kHeld & KEY_B) ? 1 : 0);
+        if(changed & KEY_Y) Keyboard::feed(Keyboard::KEY_E, (kHeld & KEY_Y) ? 1 : 0);
+    }
     if(changed & KEY_START) Keyboard::feed(Keyboard::KEY_P, (kHeld & KEY_START) ? 1 : 0);
     if(changed & KEY_R) Mouse::feed(MouseAction::ACTION_LEFT, (kHeld & KEY_R) ? 1 : 0, 0, 0);
     if(changed & KEY_L) Mouse::feed(MouseAction::ACTION_RIGHT, (kHeld & KEY_L) ? 1 : 0, 0, 0);
@@ -192,6 +237,7 @@ int main(int argc, char** argv) {
     irrstInit();
 
     MAIN_CLASS* app = new MAIN_CLASS();
+    s_app = app;
 
     app->externalStoragePath = "sdmc:/3ds/minecraftpe";
     app->externalCacheStoragePath = "sdmc:/3ds/minecraftpe/cache";

@@ -209,6 +209,7 @@ void OptionsScreen::generateOptionScreens() {
 		optionPane->createOptionsGroup("options.group.control")
 			.addOptionItem(&Options::Option::SENSITIVITY, minecraft)
 			.addOptionItem(&Options::Option::INVERT_MOUSE, minecraft)
+			.addOptionItem(&Options::Option::CONTROL_SCHEME, minecraft)
 			.addOptionItem(&Options::Option::LEFT_HANDED, minecraft)
 			.addOptionItem(&Options::Option::USE_TOUCHSCREEN, minecraft)
 			.addOptionItem(&Options::Option::USE_TOUCH_JOYPAD, minecraft)

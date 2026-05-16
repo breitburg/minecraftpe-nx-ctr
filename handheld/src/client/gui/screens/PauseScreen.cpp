@@ -13,6 +13,7 @@ PauseScreen::PauseScreen(bool wasBackPaused)
 	bQuit(0),
 	bQuitAndSaveLocally(0),
 	bServerVisibility(0),
+	bControlScheme(0),
 //	bThirdPerson(0),
 	wasBackPaused(wasBackPaused),
 	bSound(&Options::Option::SOUND, 1, 0),
@@ -39,7 +40,17 @@ PauseScreen::~PauseScreen() {
 	delete bQuit;
 	delete bQuitAndSaveLocally;
 	delete bServerVisibility;
+	delete bControlScheme;
 //	delete bThirdPerson;
+}
+
+// Текст кнопки схемы управления — отражает текущее значение опции.
+void PauseScreen::updateControlSchemeText()
+{
+	if (!bControlScheme) return;
+	bControlScheme->msg = minecraft->options.xybaCamera
+		? "Controls: XYBA Camera"
+		: "Controls: Cam Zone";
 }
 
 void PauseScreen::init() {
@@ -48,17 +59,22 @@ void PauseScreen::init() {
 		bQuit = new Touch::TButton(2, "Quit to title");
 		bQuitAndSaveLocally = new Touch::TButton(3, "Quit and copy map");
 		bServerVisibility = new Touch::TButton(4, "");
+		bControlScheme = new Touch::TButton(6, "");
 //		bThirdPerson = new Touch::TButton(5, "Toggle 3:rd person view");
 	} else {
 		bContinue = new Button(1, "Back to game");
 		bQuit = new Button(2, "Quit to title");
 		bQuitAndSaveLocally = new Button(3, "Quit and copy map");
 		bServerVisibility = new Button(4, "");
+		bControlScheme = new Button(6, "");
 //		bThirdPerson = new Button(5, "Toggle 3:rd person view");
 	}
 
+	updateControlSchemeText();
+
 	buttons.push_back(bContinue);
 	buttons.push_back(bQuit);
+	buttons.push_back(bControlScheme);
 
 	bSound.updateImage(&minecraft->options);
 	bThirdPerson.updateImage(&minecraft->options);
@@ -67,24 +83,8 @@ void PauseScreen::init() {
 	buttons.push_back(&bThirdPerson);
     //buttons.push_back(&bHideGui);
 
-	// If Back wasn't pressed, set up additional items (more than Quit to menu
-	// and Back to game) here
-    
-    #if !defined(APPLE_DEMO_PROMOTION) && !defined(RPI)
-	if (true || !wasBackPaused) {
-		if (minecraft->raknetInstance) {
-			if (minecraft->raknetInstance->isServer()) {
-				updateServerVisibilityText();
-				buttons.push_back(bServerVisibility);
-			}
-			else {
-                #if !defined(DEMO_MODE)
-                buttons.push_back(bQuitAndSaveLocally);
-				#endif
-			}
-		}
-	}
-    #endif
+	// «Quit and copy map» и «Server is visible/invisible» убраны из меню
+	// паузы по просьбе.
 //	buttons.push_back(bThirdPerson);
 
 	for (unsigned int i = 0; i < buttons.size(); ++i) {
@@ -101,6 +101,7 @@ void PauseScreen::setupPositions() {
 
 	bContinue->width = bQuit->width = /*bThirdPerson->w =*/ 160;
 	bQuitAndSaveLocally->width = bServerVisibility->width = 160;
+	bControlScheme->width = 160;
 
 	bContinue->x = (width - bContinue->width) / 2;
 	bContinue->y = yBase + 32 * 1;
@@ -112,8 +113,11 @@ void PauseScreen::setupPositions() {
     bQuit->y += 16;
 #endif
     
+	bControlScheme->x = (width - bControlScheme->width) / 2;
+	bControlScheme->y = yBase + 32 * 3;
+
 	bQuitAndSaveLocally->x = bServerVisibility->x = (width - bQuitAndSaveLocally->width) / 2;
-	bQuitAndSaveLocally->y = bServerVisibility->y = yBase + 32 * 3;
+	bQuitAndSaveLocally->y = bServerVisibility->y = yBase + 32 * 4;
 
 	bSound.y = bThirdPerson.y = 8;
 	bSound.x = 4;
@@ -156,6 +160,11 @@ void PauseScreen::buttonClicked(Button* button) {
     }
 	if (button->id == bQuitAndSaveLocally->id) {
 		minecraft->leaveGame(true);
+	}
+
+	if (button->id == bControlScheme->id) {
+		minecraft->options.toggle(&Options::Option::CONTROL_SCHEME, 1);
+		updateControlSchemeText();
 	}
 
 	if (button->id == bServerVisibility->id) {
