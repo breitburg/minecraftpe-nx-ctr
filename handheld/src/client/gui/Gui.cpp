@@ -303,29 +303,6 @@ void Gui::renderWorldMinimap(float a) {
 
 	Tesselator& t = Tesselator::instance;
 
-	if (panelY0 < y0 - 2) {
-		t.begin();
-		t.colorABGR(0x90202028);
-		t.vertex((float)x0,              (float)(y0 - 2), 0);
-		t.vertex((float)(x0 + mapOuter), (float)(y0 - 2), 0);
-		t.vertex((float)(x0 + mapOuter), (float)panelY0,  0);
-		t.vertex((float)x0,              (float)panelY0,  0);
-		t.colorABGR(0xff606078);
-		t.vertex((float)x0,              (float)(panelY0 + 1), 0);
-		t.vertex((float)(x0 + mapOuter), (float)(panelY0 + 1), 0);
-		t.vertex((float)(x0 + mapOuter), (float)panelY0,       0);
-		t.vertex((float)x0,              (float)panelY0,       0);
-		t.draw();
-	}
-
-	t.begin();
-	t.colorABGR(0xff000000);
-	t.vertex((float)x0,            (float)(y0 + mapOuter), 0);
-	t.vertex((float)(x0 + mapOuter), (float)(y0 + mapOuter), 0);
-	t.vertex((float)(x0 + mapOuter), (float)y0,            0);
-	t.vertex((float)x0,            (float)y0,            0);
-	t.draw();
-
 	const int playerBlockX = Mth::floor(minecraft->player->x);
 	const int playerBlockY = Mth::floor(minecraft->player->y);
 	const int playerBlockZ = Mth::floor(minecraft->player->z);
@@ -341,8 +318,49 @@ void Gui::renderWorldMinimap(float a) {
 	const float pzF = Mth::clamp(minecraft->player->z - (float)startBlockZ, 0.0f, (float)(mapInner - 1));
 	const float pix = (float)ix0 + pxF;
 	const float piy = (float)iy0 + pzF;
+	const bool haveTex = (_minimapReady && _minimapTexture != 0);
 
-	if (_minimapReady && _minimapTexture) {
+	int infoY0 = hasCoordPanel ? coordY0 : y0 + 2;
+	int infoY1 = hasCoordPanel ? coordY1 : y0 + 29;
+	if (infoY1 > y0 + mapOuter - 2)
+		infoY1 = y0 + mapOuter - 2;
+	const bool hasInfoPanel = (infoY1 - infoY0 >= 20);
+
+	// Каждый t.begin()/t.draw() — это отдельный glBufferData+glDrawArrays, на
+	// 3DS дорогой. Поэтому всю неотекстуренную геометрию мини-карты сливаем в
+	// два батча: «под картой» и «поверх карты». Цвет в Tesselator — атрибут
+	// вершины, так что разные цвета в одном батче не мешают.
+
+	// --- Батч 1: фон-плашки под картой ---
+	t.begin();
+	if (panelY0 < y0 - 2) {
+		t.colorABGR(0x90202028);
+		t.vertex((float)x0,              (float)(y0 - 2), 0);
+		t.vertex((float)(x0 + mapOuter), (float)(y0 - 2), 0);
+		t.vertex((float)(x0 + mapOuter), (float)panelY0,  0);
+		t.vertex((float)x0,              (float)panelY0,  0);
+		t.colorABGR(0xff606078);
+		t.vertex((float)x0,              (float)(panelY0 + 1), 0);
+		t.vertex((float)(x0 + mapOuter), (float)(panelY0 + 1), 0);
+		t.vertex((float)(x0 + mapOuter), (float)panelY0,       0);
+		t.vertex((float)x0,              (float)panelY0,       0);
+	}
+	t.colorABGR(0xff000000);
+	t.vertex((float)x0,              (float)(y0 + mapOuter), 0);
+	t.vertex((float)(x0 + mapOuter), (float)(y0 + mapOuter), 0);
+	t.vertex((float)(x0 + mapOuter), (float)y0,             0);
+	t.vertex((float)x0,              (float)y0,             0);
+	if (!haveTex) {
+		t.colorABGR(0xff181820);
+		t.vertex((float)ix0,              (float)(iy0 + mapInner), 0);
+		t.vertex((float)(ix0 + mapInner), (float)(iy0 + mapInner), 0);
+		t.vertex((float)(ix0 + mapInner), (float)iy0,              0);
+		t.vertex((float)ix0,              (float)iy0,              0);
+	}
+	t.draw();
+
+	// --- Карта (текстура) — отдельный батч, нужен GL_TEXTURE_2D ---
+	if (haveTex) {
 		const float uv = (float)kMinimapInnerSize / (float)kMinimapTextureSize;
 		glEnable2(GL_TEXTURE_2D);
 		glColor4f2(1, 1, 1, 1);
@@ -354,16 +372,9 @@ void Gui::renderWorldMinimap(float a) {
 		t.vertexUV((float)ix0,              (float)iy0,              0, 0.0f, 0.0f);
 		t.draw();
 		glDisable2(GL_TEXTURE_2D);
-	} else {
-		t.begin();
-		t.colorABGR(0xff181820);
-		t.vertex((float)ix0,              (float)(iy0 + mapInner), 0);
-		t.vertex((float)(ix0 + mapInner), (float)(iy0 + mapInner), 0);
-		t.vertex((float)(ix0 + mapInner), (float)iy0,              0);
-		t.vertex((float)ix0,              (float)iy0,              0);
-		t.draw();
 	}
 
+	// --- Батч 2: всё поверх карты — сетка, маркер игрока, плашка координат ---
 	t.begin();
 	t.colorABGR(0x90000000);
 	for (int grid = 16; grid <= 32; grid += 16) {
@@ -378,31 +389,18 @@ void Gui::renderWorldMinimap(float a) {
 		t.vertex((float)(ix0 + mapInner), gy,        0);
 		t.vertex((float)ix0,              gy,        0);
 	}
-	t.draw();
-
-	// Маркер игрока — простая зелёная точка с тёмной обводкой для контраста.
-	t.begin();
+	// Маркер игрока — зелёная точка с тёмной обводкой для контраста.
 	t.colorABGR(0xff000000);
 	t.vertex(pix - 3.0f, piy + 4.0f, 0);
 	t.vertex(pix + 4.0f, piy + 4.0f, 0);
 	t.vertex(pix + 4.0f, piy - 3.0f, 0);
 	t.vertex(pix - 3.0f, piy - 3.0f, 0);
-	t.draw();
-
-	t.begin();
 	t.colorABGR(0xff30d030);
 	t.vertex(pix - 2.0f, piy + 3.0f, 0);
 	t.vertex(pix + 3.0f, piy + 3.0f, 0);
 	t.vertex(pix + 3.0f, piy - 2.0f, 0);
 	t.vertex(pix - 2.0f, piy - 2.0f, 0);
-	t.draw();
-
-	int infoY0 = hasCoordPanel ? coordY0 : y0 + 2;
-	int infoY1 = hasCoordPanel ? coordY1 : y0 + 29;
-	if (infoY1 > y0 + mapOuter - 2)
-		infoY1 = y0 + mapOuter - 2;
-	if (infoY1 - infoY0 >= 20) {
-		t.begin();
+	if (hasInfoPanel) {
 		t.colorABGR(0xd0202028);
 		t.vertex((float)x0,              (float)infoY1, 0);
 		t.vertex((float)(x0 + mapOuter), (float)infoY1, 0);
@@ -413,8 +411,8 @@ void Gui::renderWorldMinimap(float a) {
 		t.vertex((float)(x0 + mapOuter), (float)(infoY0 + 1), 0);
 		t.vertex((float)(x0 + mapOuter), (float)infoY0,       0);
 		t.vertex((float)x0,              (float)infoY0,       0);
-		t.draw();
 	}
+	t.draw();
 
 	// Right-side rail: readable coordinates above the chunk minimap.
 	glEnable2(GL_TEXTURE_2D);
@@ -479,6 +477,7 @@ void Gui::renderCamZoneHint(float a) {
 
 	// "Скруглённый" rect = два overlap'ящих rect-а (вертикальный + горизонтальный),
 	// углы по r×r остаются "обкусанными" — выглядит как rounded.
+	// Заливка + рамка одним батчем — на 3DS каждый draw-call дорогой.
 	t.begin();
 	t.colorABGR(0x90202028); // полупрозрачный тёмно-синий
 	// Узкий вертикальный (центральный)
@@ -491,10 +490,8 @@ void Gui::renderCamZoneHint(float a) {
 	t.vertex(x1,     y1 - r, 0);
 	t.vertex(x1,     y0 + r, 0);
 	t.vertex(x0,     y0 + r, 0);
-	t.draw();
 
 	// 1-пиксельная рамка чуть посветлее — обводим тот же шейп.
-	t.begin();
 	t.colorABGR(0xff606078);
 	// Верх (между chamfer'ами)
 	t.vertex(x0 + r, y0 + 1, 0); t.vertex(x1 - r, y0 + 1, 0);
