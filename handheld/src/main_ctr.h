@@ -180,13 +180,13 @@ int main(int argc, char** argv) {
     mkdir("sdmc:/3ds/minecraftpe", 0777);
     mkdir("sdmc:/3ds/minecraftpe/cache", 0777);
 
-    FILE* log_file = fopen("sdmc:/3ds/minecraftpe/debug_log.txt", "w");
-    if (log_file) {
-        static char logBuffer[16 * 1024];
-        setvbuf(log_file, logBuffer, _IOFBF, sizeof(logBuffer));
-        dup2(fileno(log_file), STDOUT_FILENO);
-        dup2(fileno(log_file), STDERR_FILENO);
-    }
+    //FILE* log_file = fopen("sdmc:/3ds/minecraftpe/debug_log.txt", "w");
+    //if (log_file) {
+    //    static char logBuffer[16 * 1024];
+    //    setvbuf(log_file, logBuffer, _IOFBF, sizeof(logBuffer));
+    //    dup2(fileno(log_file), STDOUT_FILENO);
+    //    dup2(fileno(log_file), STDERR_FILENO);
+    //}
 
     networkInit();
     irrstInit();
@@ -207,20 +207,14 @@ int main(int argc, char** argv) {
 
     initGraphics(app, &context);
 
-    int frameCounter = 0; // Добавь счетчик перед циклом
+    int frameCounter = 0;
 
-    // --- 30 FPS frame cap ---
-    // Лочим кадр на 1/30 секунды. 60 FPS на Old 3DS всё равно недостижимы,
-    // а нестабильные 26-48 хуже стабильных 30: камера дёргается, ускорение
-    // движения непредсказуемо, физика плавает. Если кадр посчитался быстрее
-    // 33.3 мс — спим остаток через svcSleepThread, который не жжёт CPU.
-    // Если медленнее — просто проскакиваем сон.
     const u64 kTargetFrameNs = 1000000000ULL / 30ULL; // 33,333,333 ns
     u64 nextFrameTick = svcGetSystemTick();
     const u64 kSysTicksPerSec = SYSCLOCK_ARM11; // 268,123,480 на 3DS
 
     while (aptMainLoop()) {
-        FrameProf::beginFrame();
+        //FrameProf::beginFrame();
 
         {
             FrameProf::Scoped _s_input("00.input");
@@ -266,7 +260,7 @@ int main(int argc, char** argv) {
             nextFrameTick = now;
         }
 
-        FrameProf::endFrame();
+        //FrameProf::endFrame();
     }
 
     deinitGraphics();
@@ -275,7 +269,7 @@ int main(int argc, char** argv) {
     networkExit();
     romfsExit();
 
-    if (log_file) fclose(log_file);
+    //if (log_file) fclose(log_file);
 
     return 0;
 }
