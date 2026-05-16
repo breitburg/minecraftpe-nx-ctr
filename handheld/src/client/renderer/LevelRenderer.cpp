@@ -20,6 +20,7 @@
 #include "../../AppPlatform.h"
 #include "../../util/PerfTimer.h"
 #include "Textures.h"
+#include "../../util/FrameProf.h"
 #include "tileentity/TileEntityRenderDispatcher.h"
 #include "../particle/BreakingItemParticle.h"
 
@@ -335,6 +336,7 @@ int LevelRenderer::render( Mob* player, int layer, float alpha )
 	float yd = player->y - yOld;
 	float zd = player->z - zOld;
 	if (xd * xd + yd * yd + zd * zd > 4 * 4) {
+		FP_SCOPE("30.resortChunks");
 		xOld = player->x;
 		yOld = player->y;
 		zOld = player->z;
@@ -642,6 +644,7 @@ bool LevelRenderer::updateDirtyChunks( Mob* player, bool force )
 
 		DirtyChunkSorter dirtyChunkSorter(player);
 		Chunk* toAdd[count] = {NULL};
+		Chunk* rebuiltSecondary[count] = {NULL};
 		// Reused across frames to avoid per-frame heap churn.
 		std::vector<Chunk*>& nearChunks = _nearChunks;
 		nearChunks.clear();
@@ -691,13 +694,13 @@ bool LevelRenderer::updateDirtyChunks( Mob* player, bool force )
 		Stopwatch chunkWatch;
 		chunkWatch.start();
 
+		int nearDone = 0;
 		if (!nearChunks.empty()) {
 			if (nearChunks.size() > 1) {
 				std::sort(nearChunks.begin(), nearChunks.end(), dirtyChunkSorter);
 			}
 
 			int nearBudget = force ? (int)nearChunks.size() : MAX_NEAR_REBUILDS_PER_FRAME;
-			int nearDone = 0;
 			for (int i = (int)nearChunks.size() - 1; i >= 0; i--) {
 				Chunk* chunk = nearChunks[i];
 				if (nearDone >= nearBudget) {
@@ -716,25 +719,39 @@ bool LevelRenderer::updateDirtyChunks( Mob* player, bool force )
 		// render the nearest <count> chunks (farther than 1024 units away)
 		int secondaryRemoved = 0;
 
-		for (int i = count - 1; i >= 0; i--) {
-			Chunk* chunk = toAdd[i];
-			if (chunk != NULL) {
+#ifdef __3DS__
+		const bool allowSecondaryRebuilds = force || nearDone == 0;
+#else
+		const bool allowSecondaryRebuilds = true;
+#endif
+		if (allowSecondaryRebuilds) {
+			int secondaryDone = 0;
+			for (int i = count - 1; i >= 0; i--) {
+				Chunk* chunk = toAdd[i];
+				if (chunk != NULL) {
+#ifdef __3DS__
+					if (!force && secondaryDone >= 1)
+						break;
+#endif
 
-				float ttt = chunkWatch.stopContinue();
-				if (ttt >= MaxFrameTime) {
-					//LOGI("Too much work, I quit2!\n");
-					break;
-				}
+					float ttt = chunkWatch.stopContinue();
+					if (ttt >= MaxFrameTime) {
+						//LOGI("Too much work, I quit2!\n");
+						break;
+					}
 
-				if (!chunk->visible && i != count - 1) {
-					// escape early if chunks aren't ready
-					toAdd[i] = NULL;
-					toAdd[0] = NULL;
-					break;
+					if (!chunk->visible && i != count - 1) {
+						// escape early if chunks aren't ready
+						toAdd[i] = NULL;
+						toAdd[0] = NULL;
+						break;
+					}
+					toAdd[i]->rebuild();
+					toAdd[i]->setClean();
+					rebuiltSecondary[secondaryRemoved] = chunk;
+					secondaryRemoved++;
+					secondaryDone++;
 				}
-				toAdd[i]->rebuild();
-				toAdd[i]->setClean();
-				secondaryRemoved++;
 			}
 		}
 
@@ -747,7 +764,7 @@ bool LevelRenderer::updateDirtyChunks( Mob* player, bool force )
 			if (chunk != NULL) {
 				bool remove = false;
                 for (int i = 0; i < count && !remove; i++)
-                    if (chunk == toAdd[i]) {
+                    if (chunk == rebuiltSecondary[i]) {
                         remove = true;
                     }
 

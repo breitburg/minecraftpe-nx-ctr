@@ -248,6 +248,7 @@ add_executable(${PROJECT_NAME}
         ${HANDHELD}/util/StringUtils.cpp
         ${HANDHELD}/util/Mth.cpp
         ${HANDHELD}/util/PerfRenderer.cpp
+        ${HANDHELD}/util/FrameProf.cpp
         ${HANDHELD}/server/ServerPlayer.cpp
         ${HANDHELD}/server/CreatorLevel.cpp
         ${HANDHELD}/server/ArgumentsSettings.cpp

@@ -26,9 +26,13 @@
 #include "platform/input/Multitouch.h"
 #include "platform/input/Keyboard.h"
 #include "platform/input/Controller.h"
+#include "util/FrameProf.h"
 
 static bool _app_inited = false;
 static u32* soc_sharedmem = NULL;
+
+u32 __ctru_linear_heap_size = 40 * 1024 * 1024;
+u32 __stacksize__ = 256 * 1024;
 
 void networkInit() {
     if (soc_sharedmem != NULL) return;
@@ -216,19 +220,28 @@ int main(int argc, char** argv) {
     const u64 kSysTicksPerSec = SYSCLOCK_ARM11; // 268,123,480 на 3DS
 
     while (aptMainLoop()) {
-        hidScanInput();
+        FrameProf::beginFrame();
 
-        if ((hidKeysHeld() & KEY_START) && (hidKeysHeld() & KEY_SELECT)) break;
+        {
+            FrameProf::Scoped _s_input("00.input");
+            hidScanInput();
 
-        handleTouch();
-        handleController();
+            if ((hidKeysHeld() & KEY_START) && (hidKeysHeld() & KEY_SELECT)) break;
 
-        //we don't need it now
-        //nova_set_render_target(0);
+            handleTouch();
+            handleController();
+        }
 
-        app->update();
+        {
+            FrameProf::Scoped _s_update("01.app_update");
+            app->update();
+        }
 
-        novaSwapBuffers();
+        {
+            FrameProf::Scoped _s_swap("02.swap");
+            novaSwapBuffers();
+        }
+
         if (frameCounter % 600 == 0) {
             printMemoryStats();
         }
@@ -242,6 +255,7 @@ int main(int argc, char** argv) {
         nextFrameTick += kTargetFrameTicks;
         u64 now = svcGetSystemTick();
         if (now < nextFrameTick) {
+            FrameProf::Scoped _s_sleep("03.frame_sleep");
             // Осталось до дедлайна — спим. Конвертируем тики обратно в ns.
             u64 remainingTicks = nextFrameTick - now;
             s64 remainingNs = (s64)((remainingTicks * 1000000000ULL) / kSysTicksPerSec);
@@ -251,6 +265,8 @@ int main(int argc, char** argv) {
             // пытаться "догонять" пачкой быстрых кадров (это даёт рывки).
             nextFrameTick = now;
         }
+
+        FrameProf::endFrame();
     }
 
     deinitGraphics();

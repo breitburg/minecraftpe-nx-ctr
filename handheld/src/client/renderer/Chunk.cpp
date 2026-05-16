@@ -7,6 +7,7 @@
 #include "../../world/level/Region.h"
 #include "../../world/level/chunk/LevelChunk.h"
 #include "../../util/Mth.h"
+#include "../../util/FrameProf.h"
 //#include "../../platform/time.h"
 
 /*static*/ int Chunk::updates = 0;
@@ -69,6 +70,7 @@ void Chunk::translateToPos()
 void Chunk::rebuild()
 {
 	if (!dirty) return;
+	FP_SCOPE("40.chunk.rebuild");
 	//if (!visible) return;
 	updates++;
 

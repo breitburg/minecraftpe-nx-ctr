@@ -15,6 +15,7 @@
 
 #include "../Facing.h"
 #include "../../util/PerfTimer.h"
+#include "../../util/FrameProf.h"
 
 #include "tile/LiquidTile.h"
 
@@ -182,6 +183,7 @@ Player* Level::getNearestPlayer(float x, float y, float z, float maxDist) {
 
 /*public*/
 void Level::tick() {
+	FP_SCOPE("50.level.tick");
 	if (!isClientSide && levelData.getSpawnMobs()) {
 		static int _mobSpawnTick = 0;
 #if defined(__3DS__) || defined(__NDS__)
@@ -192,14 +194,19 @@ void Level::tick() {
 		if (++_mobSpawnTick >= MobSpawnInterval) {
 			_mobSpawnTick = 0;
 			TIMER_PUSH("mobSpawner");
+			FP_BEGIN("51.mobSpawner");
 			MobSpawner::tick(this,	_spawnEnemies && difficulty > Difficulty::PEACEFUL,
 									_spawnFriendlies && (levelData.getTime() % 400) < MobSpawnInterval);
+			FP_END();
 			TIMER_POP();
 		}
 	}
 
 	TIMER_PUSH("chunkSource");
-	_chunkSource->tick();
+	{
+		FP_SCOPE("52.chunkSource.tick");
+		_chunkSource->tick();
+	}
 
 	updateSkyDarken();
 	if(_nightMode) {
@@ -232,10 +239,16 @@ void Level::tick() {
 		}
 	}
 	TIMER_POP_PUSH("tickPending");
-	tickPendingTicks(false);
+	{
+		FP_SCOPE("53.tickPending");
+		tickPendingTicks(false);
+	}
 
 	TIMER_POP_PUSH("tickTiles");
-    tickTiles();
+	{
+		FP_SCOPE("54.tickTiles");
+		tickTiles();
+	}
 
 	TIMER_POP_PUSH("sendEntityData");
 	for (unsigned int i = 0; i < entities.size(); ++i) {
@@ -1342,6 +1355,7 @@ void Level::addToTickNextTick(int x, int y, int z, int tileId, int tickDelay) {
 }
 
 void Level::tickEntities() {
+	FP_SCOPE("55.tickEntities");
 	TIMER_PUSH("entities");
 
 	TIMER_PUSH("remove");

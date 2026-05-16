@@ -38,6 +38,7 @@
 #include "../Performance.h"
 #include "../LicenseCodes.h"
 #include "../util/PerfTimer.h"
+#include "../util/FrameProf.h"
 #include "../util/PerfRenderer.h"
 #include "player/input/MouseBuildInput.h"
 
@@ -573,12 +574,16 @@ void Minecraft::update() {
 	}
 
 	TIMER_PUSH("tick");
-	int toTick = timer.ticks;
-	for (int i = 0; i < toTick; ++i, ++ticks)
-		tick(i, toTick-1);
+	{
+		FP_SCOPE("60.mc.tick");
+		int toTick = timer.ticks;
+		for (int i = 0; i < toTick; ++i, ++ticks)
+			tick(i, toTick-1);
+	}
 
 	TIMER_POP_PUSH("updatelights");
 	if (level && !isGeneratingLevel) {
+		FP_SCOPE("61.updateLights");
 		level->updateLights();
 	}
 	TIMER_POP();
@@ -586,9 +591,15 @@ void Minecraft::update() {
 	#ifndef STANDALONE_SERVER
 		if (gameMode != NULL) gameMode->render(timer.a);
 		TIMER_PUSH("sound");
-		soundEngine->update(player, timer.a);
+		{
+			FP_SCOPE("62.sound");
+			soundEngine->update(player, timer.a);
+		}
 		TIMER_POP_PUSH("render");
-		gameRenderer->render(timer.a);
+		{
+			FP_SCOPE("63.gameRenderer.render");
+			gameRenderer->render(timer.a);
+		}
 		TIMER_POP();
 	#else
 	CThread::sleep(1);

@@ -17,7 +17,12 @@ typedef std::map<GLuint, GLsizei> IntGLMap;
 class Tesselator
 {
 #ifdef __3DS__
-    static const int MAX_MEMORY_USE = 4 * 1024 * 1024;
+    // 8 MB рабочего буфера. Прошлый 4 MB давал maxVertices=~87k, а worst-case
+    // чанк 16³ с открытыми гранями и quad→tri разворачиванием в Tesselator
+    // переваливает за 140k. При переполнении исходный код звал clear() уже
+    // ПОСЛЕ записи нового вертекса — то есть писал в чужую память, а потом
+    // обнулял счётчики. Это и давало "случайные" растянутые треугольники.
+    static const int MAX_MEMORY_USE = 8 * 1024 * 1024;
 #else
     static const int MAX_MEMORY_USE = 16 * 1024 * 1024;
 #endif

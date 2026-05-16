@@ -46,6 +46,10 @@ public:
 	void renderTopHud(float a);
 	void renderBottomHotbar(float a);
 	void renderBottomDirt(float a);
+	void renderHotbarOnTop(float a);
+	void buildWorldMinimap();
+	void renderWorldMinimap(float a);
+	void renderCamZoneHint(float a);
 #endif
 
 	void renderToolBar( float a, int ySlot, const int screenWidth );
@@ -126,6 +130,17 @@ private:
 	static const float DropTicks;
 	float  _currentDropTicks;
 	int    _currentDropSlot;
+
+#ifdef __3DS__
+	static const int kMinimapSize = 50;
+	static const int kMinimapInnerSize = kMinimapSize - 2;
+	static const int kMinimapTextureSize = 64;
+	unsigned int _minimapPixels[kMinimapTextureSize * kMinimapTextureSize];
+	unsigned int _minimapTexture;
+	int _minimapChunkX;
+	int _minimapChunkZ;
+	bool _minimapReady;
+#endif
 };
 
 #endif /*NET_MINECRAFT_CLIENT_GUI__Gui_H__*/

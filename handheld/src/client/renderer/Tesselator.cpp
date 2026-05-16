@@ -257,6 +257,19 @@ void Tesselator::resetScale() {
 void Tesselator::vertex( float x, float y, float z )
 {
 #ifndef STANDALONE_SERVER
+	// Бейлим ДО записи, а не после. На 4-й вершине квада эта функция пишет
+	// 3 слота (две копии-дубля для quad→tri + сам вертекс), поэтому резерв 3.
+	// Прошлый код проверял переполнение в самом конце и звал clear() — то
+	// есть запись в _varray[maxVertices+...] уже произошла, а это OOB в
+	// чужую кучу. Лучше тихо дропнуть остаток геометрии: чанк отрисуется
+	// неполным, но без артефактов.
+	if (p > maxVertices - 4) {
+		static int warned = 0;
+		if ((warned++ & 1023) == 0)
+			LOGI("Tesselator buffer full (p=%d, max=%d) — dropping vertices\n", p, maxVertices);
+		return;
+	}
+
 	count++;
 
 	if (mode == GL_QUADS && (count & 3) == 0) {
@@ -305,12 +318,6 @@ void Tesselator::vertex( float x, float y, float z )
 
 	++p;
 	++vertices;
-
-	if ((vertices & 3) == 0 && p >= maxVertices-1) {
-		for (int i = 0; i < 3; ++i)
-			printf("Overwriting the vertex buffer! This chunk/entity won't show up\n");
-		clear();
-	}
 #endif
 }
 

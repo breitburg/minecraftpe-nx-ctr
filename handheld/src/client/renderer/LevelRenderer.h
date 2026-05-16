@@ -27,11 +27,16 @@ public:
     static const int CHUNK_SIZE;
     static const int MAX_VISIBLE_REBUILDS_PER_FRAME = 3;
     static const int MAX_INVISIBLE_REBUILDS_PER_FRAME = 1;
-    // Cap on nearby chunk mesh rebuilds per frame. Without this, a burst of
-    // dirtied chunks (e.g. the rolling chunk volume wrapping as the player
-    // walks) rebuilds all at once and freezes the frame. This is the main
-    // knob for the walking stutter: lower = smoother fps but slower pop-in.
+    // Cap on nearby chunk mesh rebuilds per frame. Без этого пачка dirty-чанков
+    // (например, при пересечении границы чанка) ребилдится одним кадром и роняет
+    // FPS до ~15. На Old 3DS один rebuild стоит до 25ms (профайлер видел пики),
+    // плюс terrain-render ~15ms — два ребилда уже не влезают в 33ms бюджет
+    // 30 FPS. Поэтому 3DS ограничен 1/кадр.
+#ifdef __3DS__
+    static const int MAX_NEAR_REBUILDS_PER_FRAME = 1;
+#else
     static const int MAX_NEAR_REBUILDS_PER_FRAME = 2;
+#endif
     
     float xOld;
     float yOld;

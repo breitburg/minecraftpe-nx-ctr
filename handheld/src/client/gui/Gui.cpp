@@ -19,7 +19,12 @@
 #include "../../world/item/ItemInstance.h"
 #include "../../platform/input/Mouse.h"
 #include "../../world/level/Level.h"
+#include "../../world/level/chunk/LevelChunk.h"
+#include "../../world/level/tile/Tile.h"
+#include "../../util/Mth.h"
 #include "../../world/PosTranslator.h"
+#include <climits>
+#include <cstdio>
 
 float Gui::InvGuiScale = 1.0f / 3.0f;
 float Gui::GuiScale = 1.0f / Gui::InvGuiScale;
@@ -45,6 +50,12 @@ Gui::Gui(Minecraft* minecraft)
 	_currentDropSlot(-1),
 	MAX_MESSAGE_WIDTH(240),
 	itemNameOverlayTime(2)
+#ifdef __3DS__
+	, _minimapTexture(0),
+	_minimapChunkX(INT_MAX),
+	_minimapChunkZ(INT_MAX),
+	_minimapReady(false)
+#endif
 {
 	glGenBuffers2(1, &_inventoryRc.vboId);
 	glGenBuffers2(1, &rcFeedbackInner.vboId);
@@ -54,6 +65,13 @@ Gui::Gui(Minecraft* minecraft)
 
 Gui::~Gui()
 {
+#ifdef __3DS__
+	if (_minimapTexture) {
+		GLuint tex = (GLuint)_minimapTexture;
+		glDeleteTextures(1, &tex);
+		_minimapTexture = 0;
+	}
+#endif
 	if (_slotFont)
 		delete _slotFont;
 	glDeleteBuffers(1, &_inventoryRc.vboId);
@@ -93,15 +111,506 @@ void Gui::renderBottomDirt(float a) {
 
 	Tesselator& t = Tesselator::instance;
 	const float s = 32.0f;
+	// Z=-200: глубже хотбара (blitOffset=-90) и тач-инпута, чтобы они
+	// отрисовывались поверх. Без этого землянка перекрывает слоты.
+	const float bgZ = -200.0f;
 	t.begin();
 	t.color(0x606060);
-	t.vertexUV(0.0f,                 (float)screenHeight, 0, 0.0f,                 (float)screenHeight / s);
-	t.vertexUV((float)screenWidth,   (float)screenHeight, 0, (float)screenWidth/s, (float)screenHeight / s);
-	t.vertexUV((float)screenWidth,   0.0f,                0, (float)screenWidth/s, 0.0f);
-	t.vertexUV(0.0f,                 0.0f,                0, 0.0f,                 0.0f);
+	t.vertexUV(0.0f,                 (float)screenHeight, bgZ, 0.0f,                 (float)screenHeight / s);
+	t.vertexUV((float)screenWidth,   (float)screenHeight, bgZ, (float)screenWidth/s, (float)screenHeight / s);
+	t.vertexUV((float)screenWidth,   0.0f,                bgZ, (float)screenWidth/s, 0.0f);
+	t.vertexUV(0.0f,                 0.0f,                bgZ, 0.0f,                 0.0f);
 	t.draw();
 
 	glEnable2(GL_ALPHA_TEST);
+	glEnable2(GL_BLEND);
+}
+
+// Хотбар на верхнем экране — вызывается когда нижний экран занят
+// инвентарём/крафтом/креатив-меню.
+//
+// Внутри renderToolBar() прибиты гвоздями getSlotPos()/getHotbarYSlot(),
+// которые на 3DS всегда дают y=3 (верх нижнего экрана). Если вызвать
+// renderToolBar(ySlot=58, ...) — слот-фреймы окажутся на y=3 (старая
+// позиция), а предметы — на y=58 (новая). Получается раздвоение, что и
+// видно в Креатив-меню: пустые рамки сверху, иконки снизу.
+//
+// Решение — не править renderToolBar, а просто сдвинуть всю
+// model-view матрицу на нужный delta. Тогда фреймы, селект, предметы,
+// счётчики едут вниз одним блоком.
+void Gui::renderHotbarOnTop(float a) {
+	if (!minecraft->level || !minecraft->player)
+		return;
+
+	const int screenWidth  = (int)(minecraft->width  * InvGuiScale);
+	const int screenHeight = (int)(minecraft->height * InvGuiScale);
+
+	const int defaultYSlot = getHotbarYSlot(screenHeight);   // 6 на 3DS
+	const int wantYSlot    = screenHeight - 22;              // y нижней кромки
+	const float dy         = (float)(wantYSlot - defaultYSlot);
+
+	glPushMatrix();
+	glTranslatef2(0.0f, dy, 0.0f);
+	renderToolBar(a, defaultYSlot, screenWidth);
+	glPopMatrix();
+}
+
+// Простой палеточный mapping tile-id → RGB-цвет для мини-карты. Если тайла
+// нет в таблице, спрашиваем у Tile::getColor (medium-cost). Воздух = 0.
+// Возвращает ARGB (alpha=ff в верхних битах для непрозрачности).
+static unsigned int minimap_color_for_tile(int tileId, Level* level, int x, int y, int z) {
+	if (tileId <= 0) return 0;
+	switch (tileId) {
+		case 1:  return 0xff7f7f7f; // stone
+		case 2:  return 0xff5db050; // grass
+		case 3:  return 0xff8b6038; // dirt
+		case 4:  return 0xff606060; // cobblestone
+		case 5:  return 0xffb88f4f; // planks
+		case 7:  return 0xff202020; // bedrock
+		case 8: case 9:   return 0xff3060c0; // water
+		case 10: case 11: return 0xffe05010; // lava
+		case 12: return 0xffded3a3; // sand
+		case 13: return 0xff8a8378; // gravel
+		case 14: return 0xff9d8060; // gold ore
+		case 15: return 0xff806d5f; // iron ore
+		case 16: return 0xff333333; // coal ore
+		case 17: return 0xff6b4f2e; // log
+		case 18: return 0xff406030; // leaves
+		case 20: return 0xffc0d8e0; // glass
+		case 24: return 0xffd9d294; // sandstone
+		case 31: return 0xff63a14a; // tallgrass
+		case 35: return 0xffe0e0e0; // wool
+		case 38: case 37: return 0xffe04050; // flower red / yellow
+		case 41: return 0xffe9d24c; // gold block
+		case 42: return 0xffdddddd; // iron block
+		case 49: return 0xff1a0d30; // obsidian
+		case 56: return 0xff7ad6dc; // diamond ore
+		case 79: return 0xffa0c0e0; // ice
+		case 80: return 0xffeeeeff; // snow
+		case 82: return 0xff9099a9; // clay
+		default: {
+			Tile* tile = Tile::tiles[tileId];
+			if (!tile) return 0;
+			int c = tile->getColor(level, x, y, z);
+			return (unsigned int)(c | 0xff000000);
+		}
+	}
+}
+
+static int minimap_floor_chunk(int block) {
+	return block >= 0 ? block / 16 : (block - 15) / 16;
+}
+
+static unsigned int minimap_argb_to_abgr(unsigned int argb) {
+	return (argb & 0xff00ff00)
+		| ((argb & 0x00ff0000) >> 16)
+		| ((argb & 0x000000ff) << 16);
+}
+
+void Gui::buildWorldMinimap() {
+	if (!minecraft->level || !minecraft->player) {
+		_minimapReady = false;
+		return;
+	}
+
+	Level* level = minecraft->level;
+	const int playerBlockX = Mth::floor(minecraft->player->x);
+	const int playerBlockZ = Mth::floor(minecraft->player->z);
+	const int playerChunkX = minimap_floor_chunk(playerBlockX);
+	const int playerChunkZ = minimap_floor_chunk(playerBlockZ);
+	const int startBlockX = (playerChunkX - 1) * 16;
+	const int startBlockZ = (playerChunkZ - 1) * 16;
+
+	int cachedCx = INT_MAX;
+	int cachedCz = INT_MAX;
+	LevelChunk* cachedChunk = NULL;
+
+	for (int i = 0; i < kMinimapTextureSize * kMinimapTextureSize; i++)
+		_minimapPixels[i] = 0xff181820;
+
+	for (int my = 0; my < kMinimapInnerSize; my++) {
+		for (int mx = 0; mx < kMinimapInnerSize; mx++) {
+			const int wx = startBlockX + mx;
+			const int wz = startBlockZ + my;
+			const int cx = minimap_floor_chunk(wx);
+			const int cz = minimap_floor_chunk(wz);
+
+			if (cx != cachedCx || cz != cachedCz) {
+				cachedCx = cx;
+				cachedCz = cz;
+				cachedChunk = level->hasChunk(cx, cz) ? level->getChunk(cx, cz) : NULL;
+			}
+
+			unsigned int abgr = 0xff181820;
+			if (cachedChunk) {
+				const int lx = wx - cx * 16;
+				const int lz = wz - cz * 16;
+				const int h = cachedChunk->getHeightmap(lx, lz);
+				if (h > 0) {
+					const int tileId = cachedChunk->getTile(lx, h - 1, lz);
+					const unsigned int argb = minimap_color_for_tile(tileId, level, wx, h - 1, wz);
+					if ((argb & 0xff000000) != 0)
+						abgr = minimap_argb_to_abgr(argb);
+				}
+			}
+
+			_minimapPixels[mx + my * kMinimapTextureSize] = abgr;
+		}
+	}
+
+	if (!_minimapTexture) {
+		GLuint tex = 0;
+		glGenTextures(1, &tex);
+		_minimapTexture = tex;
+		glBindTexture2(GL_TEXTURE_2D, tex);
+		glTexParameteri2(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		glTexParameteri2(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		glTexParameteri2(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTexParameteri2(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		glTexImage2D2(GL_TEXTURE_2D, 0, GL_RGBA, kMinimapTextureSize, kMinimapTextureSize, 0, GL_RGBA, GL_UNSIGNED_BYTE, _minimapPixels);
+	} else {
+		glBindTexture2(GL_TEXTURE_2D, (GLuint)_minimapTexture);
+		glTexSubImage2D2(GL_TEXTURE_2D, 0, 0, 0, kMinimapTextureSize, kMinimapTextureSize, GL_RGBA, GL_UNSIGNED_BYTE, _minimapPixels);
+	}
+
+	_minimapChunkX = playerChunkX;
+	_minimapChunkZ = playerChunkZ;
+	_minimapReady = true;
+}
+
+void Gui::renderWorldMinimap(float a) {
+	(void)a;
+	if (!minecraft->level || !minecraft->player) return;
+
+	const int screenWidth  = (int)(minecraft->width  * InvGuiScale);
+	const int screenHeight = (int)(minecraft->height * InvGuiScale);
+
+	const int mapInner = kMinimapInnerSize;
+	const int mapOuter = kMinimapSize;
+	const int x0 = screenWidth - mapOuter - 4;
+	const int y0 = screenHeight - mapOuter - 4;
+	const int ix0 = x0 + 1;
+	const int iy0 = y0 + 1;
+	const int panelY0 = getHotbarYSlot(screenHeight) + 25;
+	const int coordY0 = panelY0;
+	const int coordY1 = y0 - 2;
+	const bool hasCoordPanel = (coordY1 - coordY0) >= 24;
+
+	glDisable2(GL_TEXTURE_2D);
+	glDisable2(GL_ALPHA_TEST);
+	glEnable2(GL_BLEND);
+	glBlendFunc2(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+	Tesselator& t = Tesselator::instance;
+
+	if (panelY0 < y0 - 2) {
+		t.begin();
+		t.colorABGR(0x90202028);
+		t.vertex((float)x0,              (float)(y0 - 2), 0);
+		t.vertex((float)(x0 + mapOuter), (float)(y0 - 2), 0);
+		t.vertex((float)(x0 + mapOuter), (float)panelY0,  0);
+		t.vertex((float)x0,              (float)panelY0,  0);
+		t.colorABGR(0xff606078);
+		t.vertex((float)x0,              (float)(panelY0 + 1), 0);
+		t.vertex((float)(x0 + mapOuter), (float)(panelY0 + 1), 0);
+		t.vertex((float)(x0 + mapOuter), (float)panelY0,       0);
+		t.vertex((float)x0,              (float)panelY0,       0);
+		t.draw();
+	}
+
+	t.begin();
+	t.colorABGR(0xff000000);
+	t.vertex((float)x0,            (float)(y0 + mapOuter), 0);
+	t.vertex((float)(x0 + mapOuter), (float)(y0 + mapOuter), 0);
+	t.vertex((float)(x0 + mapOuter), (float)y0,            0);
+	t.vertex((float)x0,            (float)y0,            0);
+	t.draw();
+
+	const int playerBlockX = Mth::floor(minecraft->player->x);
+	const int playerBlockY = Mth::floor(minecraft->player->y);
+	const int playerBlockZ = Mth::floor(minecraft->player->z);
+	const int playerChunkX = minimap_floor_chunk(playerBlockX);
+	const int playerChunkZ = minimap_floor_chunk(playerBlockZ);
+	const int startBlockX = (playerChunkX - 1) * 16;
+	const int startBlockZ = (playerChunkZ - 1) * 16;
+
+	if (!_minimapReady || _minimapChunkX != playerChunkX || _minimapChunkZ != playerChunkZ)
+		buildWorldMinimap();
+
+	if (_minimapReady && _minimapTexture) {
+		const float uv = (float)kMinimapInnerSize / (float)kMinimapTextureSize;
+		glEnable2(GL_TEXTURE_2D);
+		glColor4f2(1, 1, 1, 1);
+		glBindTexture2(GL_TEXTURE_2D, (GLuint)_minimapTexture);
+		t.begin();
+		t.vertexUV((float)ix0,              (float)(iy0 + mapInner), 0, 0.0f, uv);
+		t.vertexUV((float)(ix0 + mapInner), (float)(iy0 + mapInner), 0, uv,   uv);
+		t.vertexUV((float)(ix0 + mapInner), (float)iy0,              0, uv,   0.0f);
+		t.vertexUV((float)ix0,              (float)iy0,              0, 0.0f, 0.0f);
+		t.draw();
+		glDisable2(GL_TEXTURE_2D);
+	} else {
+		t.begin();
+		t.colorABGR(0xff181820);
+		t.vertex((float)ix0,              (float)(iy0 + mapInner), 0);
+		t.vertex((float)(ix0 + mapInner), (float)(iy0 + mapInner), 0);
+		t.vertex((float)(ix0 + mapInner), (float)iy0,              0);
+		t.vertex((float)ix0,              (float)iy0,              0);
+		t.draw();
+	}
+
+	t.begin();
+	t.colorABGR(0x90000000);
+	for (int grid = 16; grid <= 32; grid += 16) {
+		const float gx = (float)(ix0 + grid);
+		const float gy = (float)(iy0 + grid);
+		t.vertex(gx, (float)(iy0 + mapInner), 0);
+		t.vertex(gx + 1.0f, (float)(iy0 + mapInner), 0);
+		t.vertex(gx + 1.0f, (float)iy0, 0);
+		t.vertex(gx, (float)iy0, 0);
+		t.vertex((float)ix0, gy + 1.0f, 0);
+		t.vertex((float)(ix0 + mapInner), gy + 1.0f, 0);
+		t.vertex((float)(ix0 + mapInner), gy, 0);
+		t.vertex((float)ix0, gy, 0);
+	}
+	t.draw();
+
+	const float pxF = Mth::clamp(minecraft->player->x - (float)startBlockX, 0.0f, (float)(mapInner - 1));
+	const float pzF = Mth::clamp(minecraft->player->z - (float)startBlockZ, 0.0f, (float)(mapInner - 1));
+	const float pix = (float)ix0 + pxF;
+	const float piy = (float)iy0 + pzF;
+
+	const float rot = minecraft->player->yRot / 180.0f * Mth::PI;
+	const float dx = -Mth::sin(rot);
+	const float dz =  Mth::cos(rot);
+	const float perpX = -dz;
+	const float perpZ =  dx;
+
+	const float tipLen   = 4.6f;
+	const float tailLen  = 3.0f;
+	const float halfWide = 2.5f;
+
+	const float tipX = pix + dx * tipLen;
+	const float tipY = piy + dz * tipLen;
+	const float notchX = pix - dx * tailLen * 0.4f;
+	const float notchY = piy - dz * tailLen * 0.4f;
+	const float lX = pix - dx * tailLen + perpX * halfWide;
+	const float lY = piy - dz * tailLen + perpZ * halfWide;
+	const float rX = pix - dx * tailLen - perpX * halfWide;
+	const float rY = piy - dz * tailLen - perpZ * halfWide;
+
+	t.begin(GL_TRIANGLES);
+	t.colorABGR(0xff000000);
+	const float exp = 0.8f;
+	const float ox_tip = dx * exp;
+	const float oy_tip = dz * exp;
+	const float ox_l   = perpX * exp;
+	const float oy_l   = perpZ * exp;
+	t.vertex(tipX + ox_tip, tipY + oy_tip, 0);
+	t.vertex(lX + ox_l,     lY + oy_l,     0);
+	t.vertex(notchX,        notchY,        0);
+	t.vertex(tipX + ox_tip, tipY + oy_tip, 0);
+	t.vertex(notchX,        notchY,        0);
+	t.vertex(rX - ox_l,     rY - oy_l,     0);
+	t.draw();
+
+	t.begin(GL_TRIANGLES);
+	t.colorABGR(0xff20e040);
+	t.vertex(tipX,   tipY,   0);
+	t.vertex(lX,     lY,     0);
+	t.vertex(notchX, notchY, 0);
+	t.vertex(tipX,   tipY,   0);
+	t.vertex(notchX, notchY, 0);
+	t.vertex(rX,     rY,     0);
+	t.draw();
+
+	int infoY0 = hasCoordPanel ? coordY0 : y0 + 2;
+	int infoY1 = hasCoordPanel ? coordY1 : y0 + 29;
+	if (infoY1 > y0 + mapOuter - 2)
+		infoY1 = y0 + mapOuter - 2;
+	if (infoY1 - infoY0 >= 20) {
+		t.begin();
+		t.colorABGR(0xd0202028);
+		t.vertex((float)x0,              (float)infoY1, 0);
+		t.vertex((float)(x0 + mapOuter), (float)infoY1, 0);
+		t.vertex((float)(x0 + mapOuter), (float)infoY0, 0);
+		t.vertex((float)x0,              (float)infoY0, 0);
+		t.colorABGR(0xff606078);
+		t.vertex((float)x0,              (float)(infoY0 + 1), 0);
+		t.vertex((float)(x0 + mapOuter), (float)(infoY0 + 1), 0);
+		t.vertex((float)(x0 + mapOuter), (float)infoY0,       0);
+		t.vertex((float)x0,              (float)infoY0,       0);
+		t.draw();
+	}
+
+	// Right-side rail: readable coordinates above the chunk minimap.
+	glEnable2(GL_TEXTURE_2D);
+	glEnable2(GL_ALPHA_TEST);
+
+	Font* f = minecraft->font;
+	if (f && infoY1 - infoY0 >= 20) {
+		char buf[32];
+		const int textX = x0 + 3;
+		int textY = infoY0 + 3;
+		const int lineH = 8;
+
+		snprintf(buf, sizeof(buf), "X:%d", playerBlockX);
+		f->drawShadow(buf, textX, textY, 0xffffffff);
+		textY += lineH;
+		snprintf(buf, sizeof(buf), "Y:%d", playerBlockY);
+		f->drawShadow(buf, textX, textY, 0xffffffff);
+		textY += lineH;
+		snprintf(buf, sizeof(buf), "Z:%d", playerBlockZ);
+		f->drawShadow(buf, textX, textY, 0xffffffff);
+		textY += lineH;
+		if (textY + lineH <= infoY1) {
+			snprintf(buf, sizeof(buf), "C:%d,%d", playerChunkX, playerChunkZ);
+			f->drawShadow(buf, textX, textY, 0xffaaccff);
+		}
+	}
+}
+
+// Hint-плашка "Cam Zone" в левой-нижней части bottom-screen — показывает
+// игроку, что свободная область используется для управления камерой стилусом.
+// Шейп: octagon-like (прямоугольник + горизонтальная полоса = крест без углов)
+// → выглядит как rect со скруглёнными углами 2px.
+void Gui::renderCamZoneHint(float a) {
+	(void)a;
+	if (!minecraft->level || !minecraft->player) return;
+
+	const int screenWidth  = (int)(minecraft->width  * InvGuiScale);
+	const int screenHeight = (int)(minecraft->height * InvGuiScale);
+
+	const int mapX0 = screenWidth - kMinimapSize - 4;
+	const int gap = 4;
+	const int x0 = 4;
+	const int x1 = mapX0 - gap;
+	const int y0 = getHotbarYSlot(screenHeight) + 25;
+	const int y1 = screenHeight - 4;
+
+	if (x1 - x0 < 24 || y1 - y0 < 12) return; // слишком мало места
+
+	const int r = 2; // chamfer-radius
+
+	glDisable2(GL_TEXTURE_2D);
+	glDisable2(GL_ALPHA_TEST);
+	glEnable2(GL_BLEND);
+	glBlendFunc2(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+	Tesselator& t = Tesselator::instance;
+
+	// "Скруглённый" rect = два overlap'ящих rect-а (вертикальный + горизонтальный),
+	// углы по r×r остаются "обкусанными" — выглядит как rounded.
+	t.begin();
+	t.colorABGR(0x90202028); // полупрозрачный тёмно-синий
+	// Узкий вертикальный (центральный)
+	t.vertex(x0 + r, y1,     0);
+	t.vertex(x1 - r, y1,     0);
+	t.vertex(x1 - r, y0,     0);
+	t.vertex(x0 + r, y0,     0);
+	// Широкий горизонтальный (центральный по высоте)
+	t.vertex(x0,     y1 - r, 0);
+	t.vertex(x1,     y1 - r, 0);
+	t.vertex(x1,     y0 + r, 0);
+	t.vertex(x0,     y0 + r, 0);
+	t.draw();
+
+	// 1-пиксельная рамка чуть посветлее — обводим тот же шейп.
+	t.begin();
+	t.colorABGR(0xff606078);
+	// Верх (между chamfer'ами)
+	t.vertex(x0 + r, y0 + 1, 0); t.vertex(x1 - r, y0 + 1, 0);
+	t.vertex(x1 - r, y0,     0); t.vertex(x0 + r, y0,     0);
+	// Низ
+	t.vertex(x0 + r, y1,     0); t.vertex(x1 - r, y1,     0);
+	t.vertex(x1 - r, y1 - 1, 0); t.vertex(x0 + r, y1 - 1, 0);
+	// Левый бок
+	t.vertex(x0,     y1 - r, 0); t.vertex(x0 + 1, y1 - r, 0);
+	t.vertex(x0 + 1, y0 + r, 0); t.vertex(x0,     y0 + r, 0);
+	// Правый бок
+	t.vertex(x1 - 1, y1 - r, 0); t.vertex(x1,     y1 - r, 0);
+	t.vertex(x1,     y0 + r, 0); t.vertex(x1 - 1, y0 + r, 0);
+	t.draw();
+
+	glEnable2(GL_TEXTURE_2D);
+	glEnable2(GL_ALPHA_TEST);
+
+	// Заполняем панель полезной инфой: координаты + направление взгляда.
+	// Шрифт ~8px tall, нативный размер — читаемо. Зона тача камеры при этом
+	// остаётся (текст не перехватывает stylus), просто перестаёт быть пустой.
+	Font* f = minecraft->font;
+	if (f) {
+		const char* msg = "Cam Zone";
+		int tw = f->width(msg);
+		int tx = (x0 + x1) / 2 - tw / 2;
+		int ty = (y0 + y1) / 2 - 4;
+		f->drawShadow(msg, tx, ty, 0xffd0d0e0);
+	}
+	return;
+#if 0
+	if (!f) return;
+
+	const int padL = 5;       // отступ слева
+	const int padT = 3;       // отступ сверху
+	const int lineH = 9;      // высота строки (шрифт 8 + 1px зазор)
+	int textX = x0 + padL;
+	int textY = y0 + padT;
+
+	// Заголовок-маркер "Cam Zone" мелким акцентным цветом — пользователь
+	// помнит, что это всё ещё touch-area для камеры.
+	const char* hdr = "Cam Zone";
+	int hdrW = f->width(hdr);
+	f->drawShadow(hdr, x1 - hdrW - padL, textY, 0xff909098);
+
+	// Игрок: координаты блока (целочисленные).
+	const int px = Mth::floor(minecraft->player->x);
+	const int py = Mth::floor(minecraft->player->y);
+	const int pz = Mth::floor(minecraft->player->z);
+
+	char buf[32];
+	int ry = textY;
+
+	// Подпись + значения по столбцу — крупно и читаемо.
+	f->drawShadow("Coords:", textX, ry, 0xffc8c8e0);
+	ry += lineH;
+	snprintf(buf, sizeof(buf), "X %d", px);
+	f->drawShadow(buf, textX, ry, 0xffffffff);
+	ry += lineH;
+	snprintf(buf, sizeof(buf), "Y %d", py);
+	f->drawShadow(buf, textX, ry, 0xffffffff);
+	ry += lineH;
+	snprintf(buf, sizeof(buf), "Z %d", pz);
+	f->drawShadow(buf, textX, ry, 0xffffffff);
+	ry += lineH + 2; // небольшой разделитель
+
+	// Направление взгляда. yRot в MC: 0=юг, 90=запад, 180=север, 270=восток.
+	float yaw = minecraft->player->yRot;
+	yaw = yaw - 360.0f * Mth::floor(yaw / 360.0f); // нормализация в [0, 360)
+	const char* dir;
+	if      (yaw < 22.5f  || yaw >= 337.5f) dir = "S";
+	else if (yaw < 67.5f )                  dir = "SW";
+	else if (yaw < 112.5f)                  dir = "W";
+	else if (yaw < 157.5f)                  dir = "NW";
+	else if (yaw < 202.5f)                  dir = "N";
+	else if (yaw < 247.5f)                  dir = "NE";
+	else if (yaw < 292.5f)                  dir = "E";
+	else                                    dir = "SE";
+
+	if (ry + lineH <= y1) {
+		snprintf(buf, sizeof(buf), "Facing  %s", dir);
+		f->drawShadow(buf, textX, ry, 0xffaaccff);
+		ry += lineH;
+	}
+
+	// Время дня (тики мира: 24000 = полный цикл, 0=рассвет).
+	if (ry + lineH <= y1 && minecraft->level) {
+		long t_ticks = minecraft->level->getTime();
+		int hour = (int)(((t_ticks + 6000) / 1000) % 24);
+		int minute = (int)((((t_ticks + 6000) % 1000) * 60) / 1000);
+		snprintf(buf, sizeof(buf), "Time  %02d:%02d", hour, minute);
+		f->drawShadow(buf, textX, ry, 0xffe0d088);
+	}
+#endif
 }
 #endif
 
@@ -397,6 +906,12 @@ void Gui::inventoryUpdated() {
 
 void Gui::onGraphicsReset() {
     inventoryUpdated();
+#ifdef __3DS__
+	_minimapTexture = 0;
+	_minimapReady = false;
+	_minimapChunkX = INT_MAX;
+	_minimapChunkZ = INT_MAX;
+#endif
 }
 
 void Gui::texturesLoaded( Textures* textures ) {
@@ -691,6 +1206,11 @@ void Gui::onLevelGenerated() {
 		Pos p = level->getSharedSpawnPos();
 		posTranslator = OffsetPosTranslator((float)-p.x, (float)-p.y, (float)-p.z);
 	}
+#ifdef __3DS__
+	_minimapReady = false;
+	_minimapChunkX = INT_MAX;
+	_minimapChunkZ = INT_MAX;
+#endif
 }
 
 void Gui::renderDebugInfo() {

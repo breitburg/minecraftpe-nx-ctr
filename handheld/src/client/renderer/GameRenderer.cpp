@@ -2,6 +2,7 @@
 #include "gles.h"
 
 #include "../../util/PerfTimer.h"
+#include "../../util/FrameProf.h"
 
 #include "LevelRenderer.h"
 #include "ItemInHandRenderer.h"
@@ -240,6 +241,7 @@ void GameRenderer::render(float a) {
 
 #ifdef __3DS__
 void GameRenderer::renderDualScreen3ds(float a) {
+	FP_SCOPE("10.dualScreen3ds");
 	TIMER_PUSH("mouse");
 	if (mc->player && mc->mouseGrabbed) {
         mc->mouseHandler.poll();
@@ -283,22 +285,37 @@ void GameRenderer::renderDualScreen3ds(float a) {
 
 	useScreenScissor = false;
 
+	// Решаем заранее: занимает ли текущий экран хотбар на нижнем экране.
+	// Если да — хотбар уезжает наверх, чтобы игрок видел свои слоты пока
+	// копается в инвентаре/крафте/креатив-меню.
+	const bool screenHidesHotbar = (mc->screen != NULL && mc->screen->isInGameScreen());
+
 	nova_set_render_target(kTopRenderTarget);
 	Gui::ScissorScaleX = Gui::GuiScale;
 	Gui::ScissorScaleY = Gui::GuiScale;
 	glViewport(0, 0, mc->width, mc->height);
 	if (mc->isLevelGenerated()) {
+		FP_BEGIN("11.top.level");
 		TIMER_PUSH("level");
 		if (_t_keepPic < 0) {
 			renderLevel(a);
 		}
 		TIMER_POP();
+		FP_END();
 
 		if (!mc->options.hideGui) {
+			FP_BEGIN("12.top.hud");
 			TIMER_PUSH("hud");
 			setupGuiScreen(false);
 			mc->gui.renderTopHud(a);
 			TIMER_POP();
+			FP_END();
+
+			// Хотбар на верхнем экране — только когда нижний скрыт под экраном.
+			if (screenHidesHotbar) {
+				FP_SCOPE("12c.top.hotbar");
+				mc->gui.renderHotbarOnTop(a);
+			}
 		}
 	} else {
 		glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
@@ -318,26 +335,39 @@ void GameRenderer::renderDualScreen3ds(float a) {
 	setupGuiScreen(true);
 
 	// Hotbar (and bottom-screen status) — draw BEFORE an in-game screen so the
-	// screen (chest/crafting/inventory) covers it visually
-	const bool screenHidesHotbar = (mc->screen != NULL && mc->screen->isInGameScreen());
+	// screen (chest/crafting/inventory) covers it visually. screenHidesHotbar
+	// уже посчитан выше — переиспользуем для решения о bottom-hud.
 	const bool drawBottomHud = mc->isLevelGenerated() && !mc->options.hideGui && !screenHidesHotbar;
 
 	// Земляной фон под всё, что рендерится на нижнем экране в игре:
 	// до тач-управления, чтобы кнопки/индикаторы остались видны поверх.
-	if (drawBottomHud)
+	if (drawBottomHud) {
+		FP_SCOPE("13.bot.dirt");
 		mc->gui.renderBottomDirt(a);
+	}
 
 	if (mc->isLevelGenerated()) {
 		if (mc->player && mc->screen == NULL) {
+			FP_SCOPE("14.bot.input");
 			if (mc->inputHolder) mc->inputHolder->render(a);
 			if (mc->player->input) mc->player->input->render(a);
 		}
 	}
 
-	if (drawBottomHud)
+	if (drawBottomHud) {
+		FP_SCOPE("15.bot.hotbar");
 		mc->gui.renderBottomHotbar(a);
+	}
+
+	// 3DS bottom HUD extras: cam-zone hint and chunk minimap.
+	if (drawBottomHud) {
+		FP_SCOPE("15b.bot.minimap");
+		mc->gui.renderCamZoneHint(a);
+		mc->gui.renderWorldMinimap(a);
+	}
 
 	if (mc->screen != NULL) {
+		FP_SCOPE("16.bot.screen");
 		Screen::s_isRenderingTopScreen3ds = false;
 		mc->screen->render(xMouse, yMouse, a);
 		if (mc->screen && !mc->screen->isInGameScreen())
@@ -418,10 +448,17 @@ void GameRenderer::renderLevel(float a) {
         frustum.prepare(xOff, yOff, zOff);
 
 		TIMER_POP_PUSH("culling");
-        mc->levelRenderer->cull(&frustum, a);
-        mc->levelRenderer->updateDirtyChunks(cameraEntity, false);
+		{
+			FP_SCOPE("20.cull");
+			mc->levelRenderer->cull(&frustum, a);
+		}
+		{
+			FP_SCOPE("21.updateDirtyChunks");
+			mc->levelRenderer->updateDirtyChunks(cameraEntity, false);
+		}
 
 		if(mc->options.fancyGraphics) {
+			FP_SCOPE("22.clouds");
 			prepareAndRenderClouds(levelRenderer, a);
 		}
 
@@ -433,18 +470,30 @@ void GameRenderer::renderLevel(float a) {
         glDisable2(GL_BLEND);
         glEnable2(GL_CULL_FACE);
 		TIMER_POP_PUSH("terrain-0");
-        levelRenderer->render(cameraEntity, 0, a);
+		{
+			FP_SCOPE("23.terrain-0");
+			levelRenderer->render(cameraEntity, 0, a);
+		}
 
 		TIMER_POP_PUSH("terrain-1");
         glEnable2(GL_ALPHA_TEST);
-        levelRenderer->render(cameraEntity, 1, a);
-        
+		{
+			FP_SCOPE("24.terrain-1");
+			levelRenderer->render(cameraEntity, 1, a);
+		}
+
         glShadeModel2(GL_FLAT);
 		TIMER_POP_PUSH("entities");
-		mc->levelRenderer->renderEntities(cameraEntity->getPos(a), &frustum, a);
+		{
+			FP_SCOPE("25.entities");
+			mc->levelRenderer->renderEntities(cameraEntity->getPos(a), &frustum, a);
+		}
 //        setupFog(0);
 		TIMER_POP_PUSH("particles");
-        particleEngine->render(cameraEntity, a);
+		{
+			FP_SCOPE("26.particles");
+			particleEngine->render(cameraEntity, a);
+		}
 
 		glDisable2(GL_BLEND);
         glBlendFunc2(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -470,6 +519,7 @@ void GameRenderer::renderLevel(float a) {
 			//glDepthRangef(0.1f, 1.0f);
 			//glDepthMask(GL_FALSE);
 			TIMER_POP_PUSH("terrain-water");
+			FP_SCOPE("27.terrain-water");
 			glEnable2(GL_DEPTH_TEST);
             levelRenderer->render(cameraEntity, 2, a);
 			//glDepthRangef(0, 1);
