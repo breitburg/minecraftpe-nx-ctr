@@ -207,6 +207,25 @@ static unsigned int minimap_argb_to_abgr(unsigned int argb) {
 		| ((argb & 0x000000ff) << 16);
 }
 
+static void minimap_rotate_point(float x, float y, float cx, float cy, float c, float s, float& outX, float& outY) {
+	const float dx = x - cx;
+	const float dy = y - cy;
+	outX = cx + dx * c - dy * s;
+	outY = cy + dx * s + dy * c;
+}
+
+static void minimap_vertex_rotated(Tesselator& t, float x, float y, float cx, float cy, float c, float s) {
+	float rx, ry;
+	minimap_rotate_point(x, y, cx, cy, c, s, rx, ry);
+	t.vertex(rx, ry, 0);
+}
+
+static void minimap_vertex_uv_rotated(Tesselator& t, float x, float y, float cx, float cy, float c, float s, float u, float v) {
+	float rx, ry;
+	minimap_rotate_point(x, y, cx, cy, c, s, rx, ry);
+	t.vertexUV(rx, ry, 0, u, v);
+}
+
 void Gui::buildWorldMinimap() {
 	if (!minecraft->level || !minecraft->player) {
 		_minimapReady = false;
@@ -337,16 +356,32 @@ void Gui::renderWorldMinimap(float a) {
 	if (!_minimapReady || _minimapChunkX != playerChunkX || _minimapChunkZ != playerChunkZ)
 		buildWorldMinimap();
 
+	const float pxF = Mth::clamp(minecraft->player->x - (float)startBlockX, 0.0f, (float)(mapInner - 1));
+	const float pzF = Mth::clamp(minecraft->player->z - (float)startBlockZ, 0.0f, (float)(mapInner - 1));
+	const float pix = (float)ix0 + pxF;
+	const float piy = (float)iy0 + pzF;
+
+	const float rot = minecraft->player->yRot / 180.0f * Mth::PI;
+	const float dx = -Mth::sin(rot);
+	const float dz =  Mth::cos(rot);
+	const float mapRot = -Mth::PI * 0.5f - Mth::atan2(dz, dx);
+	const float mapC = Mth::cos(mapRot);
+	const float mapS = Mth::sin(mapRot);
+
+	IntRectangle mapClip(ix0, iy0, mapInner, mapInner);
+	glEnable2(GL_SCISSOR_TEST);
+	setScissorRect(mapClip);
+
 	if (_minimapReady && _minimapTexture) {
 		const float uv = (float)kMinimapInnerSize / (float)kMinimapTextureSize;
 		glEnable2(GL_TEXTURE_2D);
 		glColor4f2(1, 1, 1, 1);
 		glBindTexture2(GL_TEXTURE_2D, (GLuint)_minimapTexture);
 		t.begin();
-		t.vertexUV((float)ix0,              (float)(iy0 + mapInner), 0, 0.0f, uv);
-		t.vertexUV((float)(ix0 + mapInner), (float)(iy0 + mapInner), 0, uv,   uv);
-		t.vertexUV((float)(ix0 + mapInner), (float)iy0,              0, uv,   0.0f);
-		t.vertexUV((float)ix0,              (float)iy0,              0, 0.0f, 0.0f);
+		minimap_vertex_uv_rotated(t, (float)ix0,              (float)(iy0 + mapInner), pix, piy, mapC, mapS, 0.0f, uv);
+		minimap_vertex_uv_rotated(t, (float)(ix0 + mapInner), (float)(iy0 + mapInner), pix, piy, mapC, mapS, uv,   uv);
+		minimap_vertex_uv_rotated(t, (float)(ix0 + mapInner), (float)iy0,              pix, piy, mapC, mapS, uv,   0.0f);
+		minimap_vertex_uv_rotated(t, (float)ix0,              (float)iy0,              pix, piy, mapC, mapS, 0.0f, 0.0f);
 		t.draw();
 		glDisable2(GL_TEXTURE_2D);
 	} else {
@@ -364,65 +399,42 @@ void Gui::renderWorldMinimap(float a) {
 	for (int grid = 16; grid <= 32; grid += 16) {
 		const float gx = (float)(ix0 + grid);
 		const float gy = (float)(iy0 + grid);
-		t.vertex(gx, (float)(iy0 + mapInner), 0);
-		t.vertex(gx + 1.0f, (float)(iy0 + mapInner), 0);
-		t.vertex(gx + 1.0f, (float)iy0, 0);
-		t.vertex(gx, (float)iy0, 0);
-		t.vertex((float)ix0, gy + 1.0f, 0);
-		t.vertex((float)(ix0 + mapInner), gy + 1.0f, 0);
-		t.vertex((float)(ix0 + mapInner), gy, 0);
-		t.vertex((float)ix0, gy, 0);
+		minimap_vertex_rotated(t, gx, (float)(iy0 + mapInner), pix, piy, mapC, mapS);
+		minimap_vertex_rotated(t, gx + 1.0f, (float)(iy0 + mapInner), pix, piy, mapC, mapS);
+		minimap_vertex_rotated(t, gx + 1.0f, (float)iy0, pix, piy, mapC, mapS);
+		minimap_vertex_rotated(t, gx, (float)iy0, pix, piy, mapC, mapS);
+		minimap_vertex_rotated(t, (float)ix0, gy + 1.0f, pix, piy, mapC, mapS);
+		minimap_vertex_rotated(t, (float)(ix0 + mapInner), gy + 1.0f, pix, piy, mapC, mapS);
+		minimap_vertex_rotated(t, (float)(ix0 + mapInner), gy, pix, piy, mapC, mapS);
+		minimap_vertex_rotated(t, (float)ix0, gy, pix, piy, mapC, mapS);
 	}
 	t.draw();
 
-	const float pxF = Mth::clamp(minecraft->player->x - (float)startBlockX, 0.0f, (float)(mapInner - 1));
-	const float pzF = Mth::clamp(minecraft->player->z - (float)startBlockZ, 0.0f, (float)(mapInner - 1));
-	const float pix = (float)ix0 + pxF;
-	const float piy = (float)iy0 + pzF;
-
-	const float rot = minecraft->player->yRot / 180.0f * Mth::PI;
-	const float dx = -Mth::sin(rot);
-	const float dz =  Mth::cos(rot);
-	const float perpX = -dz;
-	const float perpZ =  dx;
-
-	const float tipLen   = 4.6f;
-	const float tailLen  = 3.0f;
-	const float halfWide = 2.5f;
-
-	const float tipX = pix + dx * tipLen;
-	const float tipY = piy + dz * tipLen;
-	const float notchX = pix - dx * tailLen * 0.4f;
-	const float notchY = piy - dz * tailLen * 0.4f;
-	const float lX = pix - dx * tailLen + perpX * halfWide;
-	const float lY = piy - dz * tailLen + perpZ * halfWide;
-	const float rX = pix - dx * tailLen - perpX * halfWide;
-	const float rY = piy - dz * tailLen - perpZ * halfWide;
-
-	t.begin(GL_TRIANGLES);
+	t.begin();
 	t.colorABGR(0xff000000);
-	const float exp = 0.8f;
-	const float ox_tip = dx * exp;
-	const float oy_tip = dz * exp;
-	const float ox_l   = perpX * exp;
-	const float oy_l   = perpZ * exp;
-	t.vertex(tipX + ox_tip, tipY + oy_tip, 0);
-	t.vertex(lX + ox_l,     lY + oy_l,     0);
-	t.vertex(notchX,        notchY,        0);
-	t.vertex(tipX + ox_tip, tipY + oy_tip, 0);
-	t.vertex(notchX,        notchY,        0);
-	t.vertex(rX - ox_l,     rY - oy_l,     0);
+	t.vertex(pix - 1.0f, piy + 7.0f, 0);
+	t.vertex(pix + 2.0f, piy + 7.0f, 0);
+	t.vertex(pix + 2.0f, piy - 7.0f, 0);
+	t.vertex(pix - 1.0f, piy - 7.0f, 0);
+	t.vertex(pix - 7.0f, piy + 2.0f, 0);
+	t.vertex(pix + 7.0f, piy + 2.0f, 0);
+	t.vertex(pix + 7.0f, piy - 1.0f, 0);
+	t.vertex(pix - 7.0f, piy - 1.0f, 0);
 	t.draw();
 
-	t.begin(GL_TRIANGLES);
-	t.colorABGR(0xff20e040);
-	t.vertex(tipX,   tipY,   0);
-	t.vertex(lX,     lY,     0);
-	t.vertex(notchX, notchY, 0);
-	t.vertex(tipX,   tipY,   0);
-	t.vertex(notchX, notchY, 0);
-	t.vertex(rX,     rY,     0);
+	t.begin();
+	t.colorABGR(0xffffffff);
+	t.vertex(pix, piy + 6.0f, 0);
+	t.vertex(pix + 1.0f, piy + 6.0f, 0);
+	t.vertex(pix + 1.0f, piy - 6.0f, 0);
+	t.vertex(pix, piy - 6.0f, 0);
+	t.vertex(pix - 6.0f, piy + 1.0f, 0);
+	t.vertex(pix + 6.0f, piy + 1.0f, 0);
+	t.vertex(pix + 6.0f, piy, 0);
+	t.vertex(pix - 6.0f, piy, 0);
 	t.draw();
+
+	glDisable2(GL_SCISSOR_TEST);
 
 	int infoY0 = hasCoordPanel ? coordY0 : y0 + 2;
 	int infoY1 = hasCoordPanel ? coordY1 : y0 + 29;
@@ -455,17 +467,17 @@ void Gui::renderWorldMinimap(float a) {
 		const int lineH = 8;
 
 		snprintf(buf, sizeof(buf), "X:%d", playerBlockX);
-		f->drawShadow(buf, textX, textY, 0xffffffff);
+		f->drawShadow(std::string(buf), textX, textY, 0xffffffff);
 		textY += lineH;
 		snprintf(buf, sizeof(buf), "Y:%d", playerBlockY);
-		f->drawShadow(buf, textX, textY, 0xffffffff);
+		f->drawShadow(std::string(buf), textX, textY, 0xffffffff);
 		textY += lineH;
 		snprintf(buf, sizeof(buf), "Z:%d", playerBlockZ);
-		f->drawShadow(buf, textX, textY, 0xffffffff);
+		f->drawShadow(std::string(buf), textX, textY, 0xffffffff);
 		textY += lineH;
 		if (textY + lineH <= infoY1) {
 			snprintf(buf, sizeof(buf), "C:%d,%d", playerChunkX, playerChunkZ);
-			f->drawShadow(buf, textX, textY, 0xffaaccff);
+			f->drawShadow(std::string(buf), textX, textY, 0xffaaccff);
 		}
 	}
 }
