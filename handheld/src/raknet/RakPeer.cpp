@@ -958,12 +958,15 @@ void RakPeer::Shutdown( unsigned int blockDuration, unsigned char orderingChanne
 		if (SocketLayer::SendTo(socketList[i]->s, (const char*) &i,1,sa2, socketList[i]->remotePortRakNetWasStartedOn_PS3_PSP2, socketList[i]->extraSocketOptions, _FILE_AND_LINE_)!=0)
 			break;
 	}
+#ifndef __3DS__
 	while ( isMainLoopThreadActive )
 	{
 		endThreads = true;
 		RakSleep(15);
 	}
+#endif
 
+#ifndef __3DS__
 	RakNet::TimeMS timeout = RakNet::GetTimeMS()+1000;
 	while ( isRecvFromLoopThreadActive.GetValue()>0 && RakNet::GetTimeMS()<timeout )
 	{
@@ -976,6 +979,7 @@ void RakPeer::Shutdown( unsigned int blockDuration, unsigned char orderingChanne
 
 		RakSleep(30);
 	}
+#endif
 
 //	char c=0;
 //	unsigned int socketIndex;
@@ -1007,14 +1011,16 @@ void RakPeer::Shutdown( unsigned int blockDuration, unsigned char orderingChanne
 	packetAllocationPool.Clear(_FILE_AND_LINE_);
 	packetAllocationPoolMutex.Unlock();
 
+#ifndef __3DS__
 	if (isRecvFromLoopThreadActive.GetValue()>0)
 	{
-		timeout = RakNet::GetTimeMS()+1000;
+		RakNet::TimeMS timeout = RakNet::GetTimeMS()+1000;
 		while ( isRecvFromLoopThreadActive.GetValue()>0 && RakNet::GetTimeMS()<timeout )
 		{
 			RakSleep(30);
 		}
 	}
+#endif
 
 	DerefAllSockets();
 

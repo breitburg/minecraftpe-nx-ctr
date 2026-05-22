@@ -218,48 +218,80 @@ Minecraft::Minecraft()
 	//setupPieces();
 }
 
+#ifdef __3DS__
+static void mcDtorLog(const char* msg) {
+	FILE* f = fopen("sdmc:/3ds/minecraftpe/exit_log.txt", "a");
+	if (f) { fputs(msg, f); fputc('\n', f); fclose(f); }
+}
+#else
+static inline void mcDtorLog(const char*) {}
+#endif
+
 Minecraft::~Minecraft()
 {
+	mcDtorLog("[~Minecraft] delete netCallback");
 	delete netCallback;
+	mcDtorLog("[~Minecraft] delete raknetInstance");
 	delete raknetInstance;
 #ifndef STANDALONE_SERVER
+	mcDtorLog("[~Minecraft] delete levelRenderer");
 	delete levelRenderer;
+	mcDtorLog("[~Minecraft] delete gameRenderer");
 	delete gameRenderer;
+	mcDtorLog("[~Minecraft] delete particleEngine");
 	delete particleEngine;
 
+	mcDtorLog("[~Minecraft] delete soundEngine");
 	delete soundEngine;
 #endif
+	mcDtorLog("[~Minecraft] delete gameMode");
 	delete gameMode;
 #ifndef STANDALONE_SERVER
+	mcDtorLog("[~Minecraft] delete font");
 	delete font;
+	mcDtorLog("[~Minecraft] delete textures");
 	delete textures;
 
 	if (screen != NULL) {
+		mcDtorLog("[~Minecraft] delete screen");
 		delete screen;
 		screen = NULL;
 	}
 #endif
 	if (level != NULL) {
+		mcDtorLog("[~Minecraft] level->saveGame");
 		level->saveGame();
-		if (level->getChunkSource())
+		if (level->getChunkSource()) {
+			mcDtorLog("[~Minecraft] level saveAll");
 			level->getChunkSource()->saveAll(true);
+		}
+		mcDtorLog("[~Minecraft] delete levelStorage");
 		delete level->getLevelStorage();
+		mcDtorLog("[~Minecraft] delete level");
 		delete level;
 		level = NULL;
 	}
 
 	//delete player;
+	mcDtorLog("[~Minecraft] delete user");
 	delete user;
+	mcDtorLog("[~Minecraft] delete inputHolder");
 	delete inputHolder;
 
+	mcDtorLog("[~Minecraft] delete storageSource");
 	delete storageSource;
+	mcDtorLog("[~Minecraft] delete _perfRenderer");
 	delete _perfRenderer;
+	mcDtorLog("[~Minecraft] delete _commandServer");
 	delete _commandServer;
 
+	mcDtorLog("[~Minecraft] clearStaticTestMobs");
 	MobFactory::clearStaticTestMobs();
 #ifndef STANDALONE_SERVER
+	mcDtorLog("[~Minecraft] EntityRenderDispatcher::destroy");
 	EntityRenderDispatcher::destroy();
 #endif
+	mcDtorLog("[~Minecraft] done");
 }
 
 // Only called by server

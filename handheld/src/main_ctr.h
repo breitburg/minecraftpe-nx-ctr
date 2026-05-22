@@ -30,42 +30,21 @@
 #include "util/FrameProf.h"
 
 static bool _app_inited = false;
-static u32* soc_sharedmem = NULL;
 
 u32 __ctru_linear_heap_size = 40 * 1024 * 1024;
 u32 __stacksize__ = 256 * 1024;
 
-void networkInit() {
-    if (soc_sharedmem != NULL) return;
-
-    // Обязательно: без этого новые потоки на 3DS живут только на core 0
-    // вместе с main loop и могут залипнуть в RakSleep навсегда. На N3DS
-    // это же открывает доступ ко второму ядру системы.
-    Result aptRc = APT_SetAppCpuTimeLimit(30);
-    if (R_FAILED(aptRc)) {
-        printf("APT_SetAppCpuTimeLimit failed: 0x%08lX\n", aptRc);
+// Диагностика выхода: каждая строка сразу пишется в файл на SD и закрывается,
+// чтобы при зависании последняя успешная строка точно осталась на карте.
+#define EXIT_LOG_PATH "sdmc:/3ds/minecraftpe/exit_log.txt"
+static void exitLog(const char* msg) {
+    FILE* f = fopen(EXIT_LOG_PATH, "a");
+    if (f) {
+        fputs(msg, f);
+        fputc('\n', f);
+        fclose(f);
     }
-
-    soc_sharedmem = (u32*)memalign(0x1000, 0x100000);
-    if(soc_sharedmem == NULL) {
-        printf("Failed to allocate SOC memory!\n");
-        return;
-    }
-
-    Result ret = socInit(soc_sharedmem, 0x100000);
-    if(R_FAILED(ret)) {
-        printf("socInit failed: 0x%08lX\n", ret);
-    } else {
-        printf("Network initialized perfectly!\n");
-    }
-}
-
-void networkExit() {
-    if (soc_sharedmem) {
-        socExit();
-        free(soc_sharedmem);
-        soc_sharedmem = NULL;
-    }
+    printf("%s\n", msg);
 }
 
 static void initGraphics(App* app, AppContext* state) {
@@ -87,16 +66,18 @@ static void initGraphics(App* app, AppContext* state) {
 }
 
 static void deinitGraphics() {
+    exitLog("[EXIT] nova_fini: begin");
     nova_fini(); // Очистка транслятора
+    //exitLog("[EXIT] nova_fini: done");
+    exitLog("[EXIT] gfxExit: begin");
     gfxExit();
+    exitLog("[EXIT] gfxExit: done");
 }
 
 // Указатель на приложение — нужен обработчикам ввода, чтобы читать опции
 // (схему управления) и спрашивать у Gui попадание тача по кнопкам.
 static MAIN_CLASS* s_app = nullptr;
 
-// Схема "XYBA = камера" активна только непосредственно в игре: в меню XYBA
-// должны работать как обычно (B = назад и т.п.).
 static bool ctrXybaInGame() {
     return s_app && s_app->options.xybaCamera
         && s_app->level != nullptr && s_app->screen == nullptr;
@@ -138,7 +119,6 @@ void handleTouch() {
         wasTouching = false;
     }
 
-    // Тач-кнопки нижнего экрана (схема XYBA): Jump — удержание, Inventory — тап.
     int btn = (xyba && isTouching && s_app)
         ? s_app->gui.controlButtonAt(lastX, lastY)
         : 0;
@@ -157,7 +137,6 @@ void handleTouch() {
 void printMemoryStats() {
     struct mallinfo mi = mallinfo();
 
-    // Свободная линейная память (ИМЕННО ОНА НУЖНА ДЛЯ ЧАНКОВ НА 3DS)
     u32 linearFree = linearSpaceFree();
 
     float heapUsedMB = (float)mi.uordblks / 1024.0f / 1024.0f;
@@ -201,7 +180,7 @@ void handleController() {
         if (kHeld & KEY_Y) lx -= 1.0f;
         if (kHeld & KEY_B) ly += 1.0f;
         if (kHeld & KEY_X) ly -= 1.0f;
-        const float kLookSpeed = 0.7f;
+        const float kLookSpeed = 0.75f;
         Controller::feed(2, Controller::STATE_TOUCH, lx * kLookSpeed, ly * kLookSpeed);
     } else {
         if(changed & KEY_A) Keyboard::feed(Keyboard::KEY_SPACE, (kHeld & KEY_A) ? 1 : 0);
@@ -225,6 +204,9 @@ int main(int argc, char** argv) {
     mkdir("sdmc:/3ds/minecraftpe", 0777);
     mkdir("sdmc:/3ds/minecraftpe/cache", 0777);
 
+    // Очищаем лог выхода в начале сессии (дальше exitLog только дописывает).
+    { FILE* f = fopen(EXIT_LOG_PATH, "w"); if (f) fclose(f); }
+
     //FILE* log_file = fopen("sdmc:/3ds/minecraftpe/debug_log.txt", "w");
     //if (log_file) {
     //    static char logBuffer[16 * 1024];
@@ -233,7 +215,6 @@ int main(int argc, char** argv) {
     //    dup2(fileno(log_file), STDERR_FILENO);
     //}
 
-    networkInit();
     irrstInit();
 
     MAIN_CLASS* app = new MAIN_CLASS();
@@ -266,7 +247,10 @@ int main(int argc, char** argv) {
             FrameProf::Scoped _s_input("00.input");
             hidScanInput();
 
-            if ((hidKeysHeld() & KEY_START) && (hidKeysHeld() & KEY_SELECT)) break;
+            if ((hidKeysHeld() & KEY_START) && (hidKeysHeld() & KEY_SELECT)) {
+                exitLog("[EXIT] loop break: START+SELECT");
+                break;
+            }
 
             handleTouch();
             handleController();
@@ -282,40 +266,45 @@ int main(int argc, char** argv) {
             novaSwapBuffers();
         }
 
-        if (frameCounter % 600 == 0) {
+        if (frameCounter % 60 == 0) {
             printMemoryStats();
         }
         frameCounter++;
 
-        // Считаем дедлайн следующего кадра от ПРОШЛОГО дедлайна, а не от
-        // "сейчас" — так не накапливается дрейф из-за пары быстрых кадров
-        // подряд, и средний FPS точно держится 30. Дедлайн в "system ticks":
         // ticks = ns * (TicksPerSec / 1e9).
         const u64 kTargetFrameTicks = (kTargetFrameNs * kSysTicksPerSec) / 1000000000ULL;
         nextFrameTick += kTargetFrameTicks;
         u64 now = svcGetSystemTick();
         if (now < nextFrameTick) {
             FrameProf::Scoped _s_sleep("03.frame_sleep");
-            // Осталось до дедлайна — спим. Конвертируем тики обратно в ns.
             u64 remainingTicks = nextFrameTick - now;
             s64 remainingNs = (s64)((remainingTicks * 1000000000ULL) / kSysTicksPerSec);
             if (remainingNs > 0) svcSleepThread(remainingNs);
         } else {
-            // Опоздали — сбрасываем дедлайн на текущий момент, чтобы не
-            // пытаться "догонять" пачкой быстрых кадров (это даёт рывки).
             nextFrameTick = now;
         }
 
         //FrameProf::endFrame();
     }
 
-    deinitGraphics();
+    exitLog("[EXIT] main loop ended (aptMainLoop returned false or break)");
 
-    irrstExit();
-    networkExit();
-    romfsExit();
+    exitLog("[EXIT] delete app: begin");
+    //delete app;
+    //s_app = nullptr;
+    exitLog("[EXIT] delete app: done");
 
-    //if (log_file) fclose(log_file);
+    //deinitGraphics();
+
+    exitLog("[EXIT] irrstExit: begin");
+    //irrstExit();
+    exitLog("[EXIT] irrstExit: done");
+
+    exitLog("[EXIT] romfsExit: begin");
+    //romfsExit();
+    exitLog("[EXIT] romfsExit: done");
+
+    exitLog("[EXIT] returning from main");
 
     return 0;
 }
