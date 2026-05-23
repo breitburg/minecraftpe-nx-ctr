@@ -432,6 +432,10 @@ void GameRenderer::renderLevel(float a) {
     float yOff = cameraEntity->yOld + (cameraEntity->y - cameraEntity->yOld) * a;
     float zOff = cameraEntity->zOld + (cameraEntity->z - cameraEntity->zOld) * a;
 
+    // Frustum culling and dirty-chunk rebuild are intrinsically frame-scoped;
+    // the eye-0 vs eye-1 parallax delta is sub-chunk, so we cull once and reuse.
+    FrustumCuller frustum;
+
     for (int i = 0; i < 2; i++) {
         if (mc->options.anaglyph3d) {
             if (i == 0) glColorMask(false, true, true, false);
@@ -478,18 +482,19 @@ void GameRenderer::renderLevel(float a) {
             glShadeModel2(GL_SMOOTH);
 		}
         
-		TIMER_POP_PUSH("frustrum");
-		FrustumCuller frustum;
-        frustum.prepare(xOff, yOff, zOff);
+		if (i == 0) {
+			TIMER_POP_PUSH("frustrum");
+			frustum.prepare(xOff, yOff, zOff);
 
-		TIMER_POP_PUSH("culling");
-		{
-			FP_SCOPE("20.cull");
-			mc->levelRenderer->cull(&frustum, a);
-		}
-		{
-			FP_SCOPE("21.updateDirtyChunks");
-			mc->levelRenderer->updateDirtyChunks(cameraEntity, false);
+			TIMER_POP_PUSH("culling");
+			{
+				FP_SCOPE("20.cull");
+				mc->levelRenderer->cull(&frustum, a);
+			}
+			{
+				FP_SCOPE("21.updateDirtyChunks");
+				mc->levelRenderer->updateDirtyChunks(cameraEntity, false);
+			}
 		}
 
 		if(mc->options.fancyGraphics) {
