@@ -41,7 +41,7 @@ bool g_stereoNativeActive = false;
 // Magnitude caps the per-eye offset at full slider; the 0.07 / 0.10 base
 // constants were tuned for anaglyph and are too strong for the 3DS parallax
 // barrier.
-static const float kNativeStereoIntensity = -0.325f;
+static const float kNativeStereoIntensity = -0.4225f;
 
 static int _shTicks = -1;
 
