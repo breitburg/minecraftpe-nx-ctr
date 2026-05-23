@@ -21,6 +21,7 @@
 
 #include "App.h"
 #include "AppPlatform_ctr.h"
+#include "client/renderer/GameRenderer.h"
 #include "platform/log.h"
 #include "platform/input/Mouse.h"
 #include "platform/input/Multitouch.h"
@@ -54,6 +55,12 @@ static void initGraphics(App* app, AppContext* state) {
 
     gfxInitDefault();
     nova_init();
+    gfxSet3D(true);
+    // Disable NovaGL's built-in per-eye projection shift (it defaults to 0.05f
+    // and leaks to non-eye-targeted draws like the bottom screen and menus).
+    // All parallax is handled manually by setupCamera / renderItemInHand.
+    novaSet3DDepth(0.0f);
+    g_stereoNativeActive = true;
 
     if (!_app_inited) {
         _app_inited = true;
@@ -254,6 +261,12 @@ int main(int argc, char** argv) {
 
             handleTouch();
             handleController();
+        }
+
+        {
+            float slider = osGet3DSliderState();
+            g_stereoSlider = slider;
+            g_stereoEyeCount = (slider > 0.001f) ? novaGetEyeCount() : 1;
         }
 
         {

@@ -29,6 +29,20 @@
 #include "../gui/components/ImageButton.h"
 #include "Tesselator.h"
 
+#ifdef __3DS__
+#include <NovaGL.h>
+#endif
+
+int g_stereoEyeCount = 1;
+float g_stereoSlider = 0.0f;
+bool g_stereoNativeActive = false;
+
+// Negative sign inverts parallax so geometry pops OUT of the screen.
+// Magnitude caps the per-eye offset at full slider; the 0.07 / 0.10 base
+// constants were tuned for anaglyph and are too strong for the 3DS parallax
+// barrier.
+static const float kNativeStereoIntensity = -0.325f;
+
 static int _shTicks = -1;
 
 #ifdef __3DS__
@@ -112,7 +126,10 @@ void GameRenderer::setupCamera(float a, int eye) {
     glLoadIdentity2();
 
     float stereoScale = 0.07f;
-    if (mc->options.anaglyph3d) glTranslatef2(-(eye * 2 - 1) * stereoScale, 0, 0);
+    float effectiveStereoScale = g_stereoNativeActive
+        ? stereoScale * g_stereoSlider * kNativeStereoIntensity
+        : (mc->options.anaglyph3d ? stereoScale : 0.0f);
+    if (effectiveStereoScale != 0.0f) glTranslatef2(-(eye * 2 - 1) * effectiveStereoScale, 0, 0);
     if (zoom != 1) {
         glTranslatef2((float) zoom_x, (float) -zoom_y, 0);
 		glScalef2(zoom, zoom, 1);
@@ -123,7 +140,10 @@ void GameRenderer::setupCamera(float a, int eye) {
 
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity2();
-    if (mc->options.anaglyph3d) glTranslatef2((eye * 2 - 1) * 0.10f, 0, 0);
+    float modelviewStereo = g_stereoNativeActive
+        ? 0.10f * g_stereoSlider * kNativeStereoIntensity
+        : (mc->options.anaglyph3d ? 0.10f : 0.0f);
+    if (modelviewStereo != 0.0f) glTranslatef2((eye * 2 - 1) * modelviewStereo, 0, 0);
 
     bobHurt(a);
     if (mc->options.bobView) bobView(a);
@@ -304,26 +324,34 @@ void GameRenderer::renderDualScreen3ds(float a) {
 		FP_END();
 
 		if (!mc->options.hideGui) {
-			FP_BEGIN("12.top.hud");
-			TIMER_PUSH("hud");
-			setupGuiScreen(false);
-			mc->gui.renderTopHud(a);
-			TIMER_POP();
-			FP_END();
+			const int hudEyes = (g_stereoNativeActive && g_stereoEyeCount > 1) ? g_stereoEyeCount : 1;
+			for (int hudEye = 0; hudEye < hudEyes; hudEye++) {
+				if (hudEyes > 1) nova_set_render_target(hudEye);
+				FP_BEGIN("12.top.hud");
+				TIMER_PUSH("hud");
+				setupGuiScreen(false);
+				mc->gui.renderTopHud(a);
+				TIMER_POP();
+				FP_END();
 
-			// Хотбар на верхнем экране — только когда нижний скрыт под экраном.
-			if (screenHidesHotbar) {
-				FP_SCOPE("12c.top.hotbar");
-				mc->gui.renderHotbarOnTop(a);
+				// Хотбар на верхнем экране — только когда нижний скрыт под экраном.
+				if (screenHidesHotbar) {
+					FP_SCOPE("12c.top.hotbar");
+					mc->gui.renderHotbarOnTop(a);
+				}
 			}
 		}
 	} else {
-		glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-		setupGuiScreen(true);
-		if (mc->screen != NULL && mc->screen->renderOnTopScreen3ds()) {
-			Screen::s_isRenderingTopScreen3ds = true;
-			mc->screen->render(xMouse, yMouse, a);
-			Screen::s_isRenderingTopScreen3ds = false;
+		const int menuEyes = (g_stereoNativeActive && g_stereoEyeCount > 1) ? g_stereoEyeCount : 1;
+		for (int menuEye = 0; menuEye < menuEyes; menuEye++) {
+			if (menuEyes > 1) nova_set_render_target(menuEye);
+			glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+			setupGuiScreen(true);
+			if (mc->screen != NULL && mc->screen->renderOnTopScreen3ds()) {
+				Screen::s_isRenderingTopScreen3ds = true;
+				mc->screen->render(xMouse, yMouse, a);
+				Screen::s_isRenderingTopScreen3ds = false;
+			}
 		}
 	}
 
@@ -409,6 +437,13 @@ void GameRenderer::renderLevel(float a) {
             if (i == 0) glColorMask(false, true, true, false);
             else glColorMask(true, false, false, false);
         }
+
+#ifdef __3DS__
+        if (g_stereoNativeActive) {
+            novaBeginEye(i);
+            nova_set_render_target(i);
+        }
+#endif
 
 		TIMER_POP_PUSH("clear");
 		glViewport(0, 0, mc->width, mc->height);
@@ -556,12 +591,13 @@ void GameRenderer::renderLevel(float a) {
             renderItemInHand(a, i);
         }
 
-        if (!mc->options.anaglyph3d) {
+        bool moreEyes = mc->options.anaglyph3d || (g_stereoNativeActive && (i + 1) < g_stereoEyeCount);
+        if (!moreEyes) {
 			TIMER_POP();
             return;
         }
     }
-    glColorMask(true, true, true, false);
+    if (mc->options.anaglyph3d) glColorMask(true, true, true, false);
 	TIMER_POP();
 }
 
@@ -1059,7 +1095,10 @@ void GameRenderer::setupGuiScreen( bool clearColorBuffer )
 /*private*/
 void GameRenderer::renderItemInHand(float a, int eye) {
     glLoadIdentity2();
-    if (mc->options.anaglyph3d) glTranslatef2((eye * 2 - 1) * 0.10f, 0, 0);
+    float handStereo = g_stereoNativeActive
+        ? 0.10f * g_stereoSlider * kNativeStereoIntensity
+        : (mc->options.anaglyph3d ? 0.10f : 0.0f);
+    if (handStereo != 0.0f) glTranslatef2((eye * 2 - 1) * handStereo, 0, 0);
 
     glPushMatrix2();
     bobHurt(a);
