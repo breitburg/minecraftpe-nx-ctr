@@ -18,6 +18,7 @@
 #include "../../world/item/Item.h"
 #include "../../world/item/ItemInstance.h"
 #include "../../platform/input/Mouse.h"
+#include "../../platform/input/Multitouch.h"
 #include "../../world/level/Level.h"
 #include "../../world/level/chunk/LevelChunk.h"
 #include "../../world/level/tile/Tile.h"
@@ -1219,7 +1220,7 @@ void Gui::renderProgressIndicator( const bool isTouchInterface, const int screen
 
 			glEnable2(GL_TEXTURE_2D);
 			glDisable(GL_BLEND);
-		} else if (tprogress > 0) {
+		} else if (tprogress > 0 && Multitouch::getFirstActivePointerIdExThisUpdate() >= 0) {
 			const float oProgress = minecraft->gameMode->oDestroyProgress;
 			const float progress = 0.5f * (oProgress + (tprogress - oProgress) * a);
 
