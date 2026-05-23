@@ -13,6 +13,11 @@ class Minecraft;
 class Entity;
 class ItemInHandRenderer;
 class LevelRenderer;
+
+extern int g_stereoEyeCount;
+extern float g_stereoSlider;
+extern bool g_stereoNativeActive;
+
 class GameRenderer
 {
 public:
