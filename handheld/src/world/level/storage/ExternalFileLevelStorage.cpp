@@ -390,8 +390,13 @@ LevelChunk* ExternalFileLevelStorage::load(Level* level, int x, int z)
 	chunkData->Read((char*)blockIds, CHUNK_BLOCK_COUNT);
 
 	LevelChunk* levelChunk = new LevelChunk(level, blockIds, x, z);
+	// DataLayer starts pointing at a shared zero-filled buffer; allocate
+	// per-chunk storage before reading raw bytes or we corrupt every chunk.
+	levelChunk->data.forceAllocate();
 	chunkData->Read((char*)levelChunk->data.data, CHUNK_BLOCK_COUNT / 2);
 	if (loadedStorageVersion >= ChunkVersion_Light) {
+		levelChunk->skyLight.forceAllocate();
+		levelChunk->blockLight.forceAllocate();
 		chunkData->Read((char*)levelChunk->skyLight.data, CHUNK_BLOCK_COUNT / 2);
 		chunkData->Read((char*)levelChunk->blockLight.data, CHUNK_BLOCK_COUNT / 2);
 	}

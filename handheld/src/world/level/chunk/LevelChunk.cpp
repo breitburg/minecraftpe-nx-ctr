@@ -699,11 +699,11 @@ int LevelChunk::setBlocksAndData( unsigned char* data, int x0, int y0, int z0, i
 
 	len = (y1 - y0) / 2;
 
-#ifdef __3DS__
+	// DataLayer starts pointing at a shared zero-filled buffer; allocate
+	// per-chunk storage before memcpy or we corrupt every chunk's metadata.
 	this->data.forceAllocate();
 	this->blockLight.forceAllocate();
 	this->skyLight.forceAllocate();
-#endif
 
 	for (int x = x0; x < x1; x++)
 	for (int z = z0; z < z1; z++) {
